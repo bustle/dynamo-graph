@@ -1,0 +1,11 @@
+.*
+*.swp
+*.swo
+.DS_Store
+npm-debug.log
+
+node_modules
+lib
+src
+test
+decls

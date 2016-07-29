@@ -1,0 +1,76 @@
+{
+  "name": "dynamo-graph",
+  "description": "Low-level graph database operations implemented in DynamoDB.",
+  "version": "0.0.1",
+  "main": "lib/index.js",
+  "scripts": {
+    "compile": "NODE_ENV=production babel -d lib/ src/",
+    "flow": "flow && npm run flow:check",
+    "flow:check": "flow check --all",
+    "flow:stop": "flow stop",
+    "test": "ava",
+    "test:watch": "ava --watch",
+    "prepublish": "npm run compile"
+  },
+  "author": "James Yu",
+  "license": "WTFPL",
+  "bugs": {
+    "url": "https://github.com/bustlelabs/dynamo-graph/issues"
+  },
+  "homepage": "https://github.com/bustlelabs/dynamo-graph#readme",
+  "dependencies": {
+    "aws-sdk": "^2.4.10"
+  },
+  "devDependencies": {
+    "ava": "^0.15.2",
+    "babel-cli": "^6.11.4",
+    "babel-plugin-module-alias": "^1.6.0",
+    "babel-plugin-transform-flow-strip-types": "^6.8.0",
+    "babel-plugin-transform-runtime": "^6.12.0",
+    "babel-preset-es2015": "^6.9.0",
+    "babel-preset-stage-0": "^6.5.0",
+    "babel-register": "^6.11.6",
+    "flow-bin": "^0.29.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bustlelabs/dynamo-graph.git"
+  },
+  "keywords": [
+    "dynamo",
+    "dynamodb",
+    "graph",
+    "graphdb",
+    "database",
+    "aws"
+  ],
+  "ava": {
+    "babel": {
+      "babelrc": true,
+      "plugins": [
+        [
+          "module-alias",
+          [
+            {
+              "src": "./src",
+              "expose": "dynamo-graph"
+            }
+          ]
+        ]
+      ]
+    },
+    "require": [
+      "babel-register"
+    ]
+  },
+  "babel": {
+    "presets": [
+      "es2015",
+      "stage-0"
+    ],
+    "plugins": [
+      "transform-runtime",
+      "transform-flow-strip-types"
+    ]
+  }
+}
