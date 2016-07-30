@@ -20,7 +20,7 @@ test
       const v = await V.create(g, CREATE, attrs)
       t.deepEqual(attrs, v.attrs)
       t.is(v.label, 'Create')
-      const v$ = await V.find(g, v.id)
+      const v$ = await V.get(g, v.id)
       t.deepEqual(v, v$)
     }
   )
@@ -41,7 +41,7 @@ test
       t.is(v1.label, v2.label)
       t.not(v1.id, v2.id)
 
-      const [ v1$, v2$ ] = await V.findMany(g, [ v1.id, v2.id ])
+      const [ v1$, v2$ ] = await V.getMany(g, [ v1.id, v2.id ])
 
       t.deepEqual(v1, v1$)
       t.deepEqual(v2, v2$)

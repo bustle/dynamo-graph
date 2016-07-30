@@ -43,9 +43,11 @@ export const TABLE_SYSTEM : Table = "system"
 
 type Index
   = "hk-weight-index"       // where hk is of the form [id]:[edge_label]
+  | "from-to-index"         // used to determine all adjacencies to a vertex
   | "label-key-index"       // used for quick retrieval of significant vertices or mappings
   | "label-updatedAt-index" // used for scanning the entire table for maintenance tasks
 
+export const INDEX_FROM_TO    : Index = "from-to-index"
 export const INDEX_ADJACENCY  : Index = "hk-weight-index"
 export const INDEX_VERTEX_KEY : Index = "label-key-index"
 export const INDEX_VERTEX_ALL : Index = "label-updatedAt-index"

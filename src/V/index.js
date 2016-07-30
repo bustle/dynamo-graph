@@ -3,8 +3,8 @@
 import type { $Id, $Label, $Key } from '../Types'
 import type { Graph, QueryResult } from '../G'
 
-import { TABLE_SYSTEM
-       , TABLE_VERTEX
+import { TABLE_VERTEX
+       , INDEX_FROM_TO
        , INDEX_VERTEX_KEY
        , INDEX_VERTEX_ALL
        } from '../G'
@@ -48,7 +48,7 @@ type Vertex<a> =
  *
  * Notice that vertices are paramterized over their type.
  * We define a VertexDef object which describes the type of a vertex,
- * such that the string representation `label` uniquey identifies the definition
+ * such that the string representation `label` uniquely identifies the definition
  *
  */
 
@@ -97,14 +97,14 @@ export async function create<a>(g: Graph, def: VertexDef<a>, attrs: a): Promise<
   return putVertex(g, def, id, attrs)
 }
 
-// V.put :: Graph -> VertexDef a -> Id -> a -> Vertex a
-export async function put<a>(g: Graph, def: VertexDef<a>, id: $Id, attrs: a): Promise<Vertex<a>> {
+// V.update :: Graph -> VertexDef a -> Id -> a -> Vertex a
+export async function update<a>(g: Graph, def: VertexDef<a>, id: $Id, attrs: a): Promise<Vertex<a>> {
   return putVertex(g, def, id, attrs)
 }
 
 // V.putByKey :: Graph -> VertexDef a -> Key a -> a -> Vertex a
 export async function putByKey<a>(g: Graph, def: VertexDef<a>, key: $Key<a>, attrs: a): Promise<Vertex<a>> {
-  const v: ?Vertex<a> = await findByKey(g, def, key)
+  const v: ?Vertex<a> = await getByKey(g, def, key)
   const id: $Id = v ? v.id
                     : await g.id()
   return putVertex(g, def, id, attrs, key)
@@ -124,17 +124,17 @@ async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a
  *
  * Since the id uniquely identifies the vertex, there exists a mapping
  *
- *   V.find :: Graph -> Id -> Vertex (∃ a) ?
- *   V.findMany :: Graph -> [ Id ] -> [ Vertex (∃ a) ? ]
+ *   V.get :: Graph -> Id -> Vertex (∃. a) ?
  *
  */
 
-export async function find(g: Graph, id: $Id): Promise<?Vertex<mixed>> {
-  const [ v ]: [?Vertex<mixed>] = await findMany(g, [id])
+export async function get(g: Graph, id: $Id): Promise<?Vertex<mixed>> {
+  const [ v ]: [?Vertex<mixed>] = await getMany(g, [id])
   return v
 }
 
-export async function findMany(g: Graph, ids: [$Id]): Promise<[?Vertex<mixed>]> {
+// V.getMany :: Graph -> [ Id ] -> [ Vertex (∃ a) ? ]
+export async function getMany(g: Graph, ids: [$Id]): Promise<[?Vertex<mixed>]> {
   const keys: { id: $Id }[] = ids.map(id => ({ id }))
   const vertices: [?Vertex<mixed>] = await g.batchGet(TABLE_VERTEX, keys)
   return vertices
@@ -144,13 +144,13 @@ export async function findMany(g: Graph, ids: [$Id]): Promise<[?Vertex<mixed>]> 
  * And since the label-key pair uniquely identifies a vertex,
  * there exists a similar mapping:
  *
- *   V.findByKey :: Graph -> VertexDef a -> Key a -> Vertex a ?
+ *   V.getByKey :: Graph -> VertexDef a -> Key a -> Vertex a ?
  *
  * note however, that due to performance characteristics,
  * this method should only be used for root fields, not for traversals
  */
 
-export async function findByKey<a>
+export async function getByKey<a>
   ( g: Graph
   , { label }: VertexDef<a>
   , key: $Key<a>
@@ -168,26 +168,6 @@ export async function findByKey<a>
           }
         )
 
-    /*
-    const test: QueryResult<?Vertex<a>> =
-      await g.query
-        ( TABLE_VERTEX
-        , INDEX_VERTEX_ALL
-        , { KeyConditions:
-            { label: { ComparisonOperator: 'EQ'
-                     , AttributeValueList: [ label ]
-                     }
-            , updatedAt: { ComparisonOperator: 'GT'
-                         , AttributeValueList: [ 1469837733790 ]
-                         }
-            }
-          }
-        , 10
-        )
-
-    console.log(test)
-    */
-
     return items[0]
 
   }
@@ -195,10 +175,46 @@ export async function findByKey<a>
 /**
  * Also recall that there exists a per-type index of all vertices,
  * we expose this through a paginated method:
- *
- *   V.all :: Graph -> VertexDef a -> Cursor -> Page (Vertex a)
- *
  */
 
+// V.all :: Graph -> VertexDef a -> Cursor -> Page (Vertex a)
 export async function all<a>(g: Graph, { label }: VertexDef<a>, pageInfo: any): Promise<void> {
+
+  /*
+  const test: QueryResult<?Vertex<a>> =
+    await g.query
+      ( TABLE_VERTEX
+      , INDEX_VERTEX_ALL
+      , { KeyConditions:
+          { label: { ComparisonOperator: 'EQ'
+                   , AttributeValueList: [ label ]
+                   }
+          , updatedAt: { ComparisonOperator: 'GT'
+                       , AttributeValueList: [ 1469837733790 ]
+                       }
+          }
+        }
+      , 10
+      )
+
+  console.log(test)
+  */
+
+}
+
+/**
+ * Finally, we expose a method to remove a vertex from the graph
+ *
+ * Removing a vertex will also remove all adjacencies
+ */
+
+export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
+  const v = await get(g, id)
+  invariant
+    ( v
+    , 'Cannot remove a vertex that does not exist'
+    )
+  // TODO: delete adjacencies
+  await g.batchDel(TABLE_VERTEX, [{ id }])
+  return v
 }
