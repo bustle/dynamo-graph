@@ -4,11 +4,9 @@ Low-level graph database operations implemented in DynamoDB. Logic involving com
 
 Ensure that you have your AWS CLI properly configured, so that the `aws-sdk` dependency can do its magic.
 
-# Documentation
+# Documentation (TODO)
 
 All code is written in a literate style. For more detailed explanations, refer to the source code.
-The following type signatures differ slightly from the actual FlowType annotations.
-In particular, phantom types are removed, and aliases are kept only to mark "private" types
 
 ### Example
 
@@ -59,9 +57,8 @@ type Graph =
   }
 ```
 
-### `.define(name: string, configs: ?{ env?: Env, region?: Region }): Graph`
-
-### `.generate(g: Graph): Promise<Graph>`
+### `G.define(name[, { env, region }]): Graph`
+### `G.generate(g): Promise<Graph>`
 
 ## V
 
@@ -78,11 +75,44 @@ type Vertex<a> =
   }
 ```
 
-### `.define<a>(label: string): VertexDef<a>`
-### `.create<a>(g: Graph, def: VertexDef<a>, attrs: a): Promise<Vertex<a>>`
-### `.update<a>(g: Graph, def: VertexDef<a>, id: string, attrs: a): Promise<Vertex<a>>`
-### `.putByKey<a>(g: Graph, def: VertexDef<a>, key: string, attrs: a): Promise<Vertex<a>>`
-### `.get(g: Graph, id: string): Promise<?Vertex<*>>`
-### `.getMany(g: Graph, ids: [string]): Promise<[?Vertex<*>]>`
-### `.getByKey<a>(g: Graph, def: VertexDef<a>, key: string): Promise<?Vertex<a>>`
-### `.remove(g: Graph, id: string): Promise<Vertex<*>>`
+### `V.define(label)`
+### `V.create(g, def, attrs)`
+### `V.update(g, def, id, attrs)`
+### `V.putByKey(g, def, key, attrs)`
+### `V.get(g, id)`
+### `V.getMany(g, ids)`
+### `V.getByKey(g, def, key)`
+### `V.all(g, def, cursor)`
+### `V.remove(g, id)`
+
+## E
+
+An edge is a tuple `(from, label, direction, weight, to, attrs, updatedAt)` such that
+`(from, label, direction, to)` and `(from, label, direction, weight)` both uniquely identify the edge.
+
+```js
+type Edge<a> =
+  { from       : string
+  , label      : Label
+  , direction  : ">" | "<"
+  , weight     : number
+  , to         : string
+  , attrs      : a
+  , updatedAt  : number
+  }
+```
+
+### Multiplicities
+
+Defining an Edge requires the use of one of the following multiplicities:
+
+- `E.MANY_TO_MANY`
+- `E.ONE_TO_MANY`
+- `E.MANY_TO_ONE`
+- `E.ONE_TO_ONE`
+
+### `E.define(label, multiplicity)`
+### `E.get(from, label, direction, to)`
+### `E.range(from, label, direction, cursor)`
+### `E.set(from, label, direction, weight, to, attrs)`
+### `E.remove(from, label, direction, to)`
