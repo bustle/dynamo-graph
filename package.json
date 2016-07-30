@@ -45,20 +45,7 @@
     "aws"
   ],
   "ava": {
-    "babel": {
-      "babelrc": true,
-      "plugins": [
-        [
-          "module-alias",
-          [
-            {
-              "src": "./src",
-              "expose": "dynamo-graph"
-            }
-          ]
-        ]
-      ]
-    },
+    "babel": "inherit",
     "require": [
       "babel-register"
     ]
@@ -69,6 +56,15 @@
       "stage-0"
     ],
     "plugins": [
+      [
+        "module-alias",
+        [
+          {
+            "src": "./src",
+            "expose": "dynamo-graph"
+          }
+        ]
+      ],
       "transform-runtime",
       "transform-flow-strip-types"
     ]

@@ -1,5 +1,6 @@
 /* @flow */
 
-export * as G from './graph'
+export * as G from './G'
+export * as V from './V'
 
-export const foo : string = 'foo'
+export * as Types from './Types'
