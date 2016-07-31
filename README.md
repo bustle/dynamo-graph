@@ -40,6 +40,8 @@ const overview = async () => {
   const me = await V.create(g, USER, { name: "James", job: "Intern" })
   const boss = await V.create(g, USER, { name: "Tyler", job: "CTO" })
 
+  const newYearNewMe = await V.update(g, USER, me.id, { name: "James", job: "Engineer" })
+
 }
 ```
 
@@ -102,17 +104,21 @@ type Edge<a> =
   }
 ```
 
+### Directions
+
+Edge operations require a direction: `E.OUT`, or `E.IN`
+
 ### Multiplicities
 
 Defining an Edge requires the use of one of the following multiplicities:
 
-- `E.MANY_TO_MANY`
-- `E.ONE_TO_MANY`
-- `E.MANY_TO_ONE`
-- `E.ONE_TO_ONE`
+- `E.MANY_TO_MANY`: no restrictions, describes a simple graph
+- `E.ONE_TO_MANY`: a vertex may have many `OUT` edges, but only one `IN` edge, typically surjective
+- `E.MANY_TO_ONE`: a vertex may have many `IN` edges, but many `OUT` edge, i.e. an injective mapping
+- `E.ONE_TO_ONE`: a vertex may have only one `IN` or `OUT` edge, i.e. a bipartition
 
 ### `E.define(label, multiplicity)`
-### `E.get(from, label, direction, to)`
-### `E.range(from, label, direction, cursor)`
-### `E.set(from, label, direction, weight, to, attrs)`
-### `E.remove(from, label, direction, to)`
+### `E.get(g, from, def, direction, to)`
+### `E.range(g, from, def, direction, cursor)`
+### `E.set(g, from, def, direction, weight, to, attrs)`
+### `E.remove(g, from, def, to)`

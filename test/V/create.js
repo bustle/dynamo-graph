@@ -3,12 +3,7 @@ import test from 'ava'
 import { V } from 'dynamo-graph'
 import { g } from '../helpers'
 
-const CREATE = V.define
-  ( 'Create'
-  , { foo: "string!"
-    , bar: "number"
-    }
-  )
+const CREATE = V.define('Create')
 
 test
   ( 'Creates a vertex'

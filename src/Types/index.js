@@ -45,6 +45,8 @@ export type $Key<a> = string
 export type $Weight = number
 
 /**
+ *
+ * TODO:
  * Schema
  *
  * dynamo-graph will perform data validations before persisting an element
@@ -56,28 +58,28 @@ export type $Schema = { [key: string]: $Schema } | "NoAttrs"
 /**
  * Cursor and Page
  *
- * dynamo-graph follows the relay specification for pagination
+ * dynamo-graph follows the relay-like specification for pagination
  */
 
-export type $Cursor = ForwardCursor
-                    | BackwardCursor
+export type $Cursor
+  = ForwardCursor
+  | ReverseCursor
+  | {}
+
+export * as Cursor from './Cursor'
 
 type ForwardCursor =
-  { direction: "forward"
-  , first?: number
+  { first: number
   , after?: number
   }
 
-type BackwardCursor =
-  { direction: "backward"
-  , last?: number
+type ReverseCursor =
+  { last: number
   , before?: number
   }
 
 export type $Page<a> =
-  { items: [a]
-  , pageInfo:
-    { hasNextPage: boolean
-    , hasPreviousPage: boolean
-    }
+  { items: Array<a>
+  , count: number
+  , total?: number
   }

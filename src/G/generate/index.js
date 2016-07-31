@@ -8,6 +8,7 @@ import https from 'https'
 
 import generateSystem from './system'
 import generateVertex from './vertex'
+import generateEdge from './edge'
 
 const httpOptions =
   { agent: new https.Agent
@@ -42,10 +43,12 @@ export default async function(g: Graph): Promise<Graph> {
   ctx.out(`Generating tables for ${g.name}`)
 
   // TODO: handle the >100 tables case
-  const { TableNames: tables } = await ddb.listTables().promise()
+  const { TableNames: tables } : { TableNames: Array<string> } =
+    await ddb.listTables().promise()
 
   await generateSystem(indent(ctx), tables)
   await generateVertex(indent(ctx), tables)
+  await generateEdge(indent(ctx), tables)
 
   return g
 

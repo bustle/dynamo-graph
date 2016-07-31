@@ -1,15 +1,20 @@
 /* @flow */
 
-import type { $Id, $Label, $Key } from '../Types'
-import type { Graph, QueryResult } from '../G'
+import type { $Id, $Label, $Key, $Cursor, $Page } from '../Types'
+import type { ParsedCursor } from '../Types/Cursor'
+import type { Graph } from '../G'
 
 import { TABLE_VERTEX
-       , INDEX_FROM_TO
+       , TABLE_EDGE
+       , INDEX_EDGE_FROM
        , INDEX_VERTEX_KEY
        , INDEX_VERTEX_ALL
        } from '../G'
 
-import { invariant } from '../utils'
+import { OUT, IN } from '../E'
+
+import { invariant, maybe, flatten } from '../utils'
+import { Cursor } from '../Types'
 
 /**
  * V
@@ -53,7 +58,8 @@ type Vertex<a> =
  */
 
 type VertexDef<a> =
-  { label: $Label<Vertex<a>>
+  { __VERTEX_DEF__: true
+  , label: $Label<Vertex<a>>
   // TODO: schema/validation object
   }
 
@@ -71,16 +77,14 @@ const defs: { [key: string]: VertexDef<mixed> } = {}
 
 export function define<a>(label: $Label<Vertex<a>>): VertexDef<a> {
 
-  invariant
-    ( label
-    , 'Label must be non-empty'
-    )
+  invariant(label, 'Label must be non-empty')
 
   if (defs[label])
     return defs[label]
 
   const def =
-    { label
+    { __VERTEX_DEF__: true
+    , label
     }
 
   return defs[label] = def
@@ -129,14 +133,22 @@ async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a
  */
 
 export async function get(g: Graph, id: $Id): Promise<?Vertex<mixed>> {
-  const [ v ]: [?Vertex<mixed>] = await getMany(g, [id])
+
+  invariant(g.__GRAPH__, `V.get expected Graph for 1st argument, got "${g}"`)
+  invariant(id,          `V.get expected Id for 2nd argument, got "${id}"`)
+
+  const [ v ]: Array<?Vertex<mixed>> = await getMany(g, [id])
   return v
 }
 
 // V.getMany :: Graph -> [ Id ] -> [ Vertex (∃ a) ? ]
-export async function getMany(g: Graph, ids: [$Id]): Promise<[?Vertex<mixed>]> {
-  const keys: { id: $Id }[] = ids.map(id => ({ id }))
-  const vertices: [?Vertex<mixed>] = await g.batchGet(TABLE_VERTEX, keys)
+export async function getMany(g: Graph, ids: Array<$Id>): Promise<Array<?Vertex<mixed>>> {
+
+  invariant(g.__GRAPH__,        `V.getMany expected Graph for 1st argument, got "${g}"`)
+  invariant(Array.isArray(ids), `V.getMany expected [Id] for 2nd argument, got "${ids}"`)
+
+  const keys: Array<{ id: $Id }> = ids.map(id => ({ id }))
+  const vertices: Array<?Vertex<mixed>> = await g.batchGet(TABLE_VERTEX, keys)
   return vertices
 }
 
@@ -152,55 +164,65 @@ export async function getMany(g: Graph, ids: [$Id]): Promise<[?Vertex<mixed>]> {
 
 export async function getByKey<a>
   ( g: Graph
-  , { label }: VertexDef<a>
+  , def: VertexDef<a>
   , key: $Key<a>
   ): Promise<?Vertex<a>> {
 
-    const { items }: QueryResult<?Vertex<a>> =
+    invariant(g.__GRAPH__,        `V.getByKey expected Graph for 1st argument, got "${g}"`)
+    invariant(def.__VERTEX_DEF__, `V.getByKey expected VertexDef for 2nd argument, got "${def}"`)
+    invariant(key,                `V.getByKey expected Key for 3rd argument, got "${key}"`)
+
+    const { items: [ v ] }: $Page<Vertex<a>> =
       await g.query
         ( TABLE_VERTEX
         , INDEX_VERTEX_KEY
         , { KeyConditions:
-            { label: { ComparisonOperator: 'EQ', AttributeValueList: [ label ] }
+            { label: { ComparisonOperator: 'EQ', AttributeValueList: [ def.label ] }
             , key:   { ComparisonOperator: 'EQ', AttributeValueList: [ key   ] }
             }
           , Limit: 1 // we do not want pagination data
           }
         )
 
-    return items[0]
+    return v
 
   }
 
 /**
  * Also recall that there exists a per-type index of all vertices,
- * we expose this through a paginated method:
+ * we expose this through a paginated method
+ *
+ * Note, however, that this is a utility function intended for OLAP use only
+ * For OLTP, always use explicit root nodes and edges
  */
 
-// V.all :: Graph -> VertexDef a -> Cursor -> Page (Vertex a)
-export async function all<a>(g: Graph, { label }: VertexDef<a>, pageInfo: any): Promise<void> {
+// V.all :: Graph -> VertexDef a -> Cursor? -> Page (Vertex a)
+export async function all<a>
+  ( g: Graph
+  , def: VertexDef<a>
+  , cursor: ?$Cursor = {}
+  ): Promise<$Page<Vertex<a>>> {
 
-  /*
-  const test: QueryResult<?Vertex<a>> =
-    await g.query
+    invariant(g.__GRAPH__,        `V.all expected Graph for 1st argument, got "${g}"`)
+    invariant(def.__VERTEX_DEF__, `V.all expected VertexDef for 2nd argument, got "${def}"`)
+
+    const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
+
+    return g.query
       ( TABLE_VERTEX
       , INDEX_VERTEX_ALL
       , { KeyConditions:
           { label: { ComparisonOperator: 'EQ'
-                   , AttributeValueList: [ label ]
+                   , AttributeValueList: [ def.label ]
                    }
-          , updatedAt: { ComparisonOperator: 'GT'
-                       , AttributeValueList: [ 1469837733790 ]
-                       }
+          , ...maybe('updatedAt', RangeCondition)
           }
+        , ScanIndexForward
         }
-      , 10
+      , Limit
       )
 
-  console.log(test)
-  */
-
-}
+  }
 
 /**
  * Finally, we expose a method to remove a vertex from the graph
@@ -209,12 +231,38 @@ export async function all<a>(g: Graph, { label }: VertexDef<a>, pageInfo: any): 
  */
 
 export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
+
+  // effectively performs type validations
+  // but we should do them again here so the error messages match
   const v = await get(g, id)
-  invariant
-    ( v
-    , 'Cannot remove a vertex that does not exist'
-    )
+
+  invariant(v, 'Cannot remove a vertex that does not exist')
+
   // TODO: delete adjacencies
+  const { items: edges } =
+    await g.query
+      ( TABLE_EDGE
+      , INDEX_EDGE_FROM
+      , { KeyConditions:
+          { from: { ComparisonOperator: 'EQ', AttributeValueList: [ v.id ] }
+          }
+        }
+      )
+
+  const edgeKeys: Array<{ hk: string, to: string }> =
+    flatten(
+      edges.map(
+        ({ out, label, to }) =>
+          to === id // handles duplicate keys error
+          ? [ { hk: `${id}${out?OUT:IN}${label}`, to } ]
+          : [ { hk: `${id}${out?OUT:IN}${label}`, to }
+            , { hk: `${to}${out?IN:OUT}${label}`, to: id }
+            ]
+      )
+    )
+
+  await g.batchDel(TABLE_EDGE, edgeKeys)
   await g.batchDel(TABLE_VERTEX, [{ id }])
+
   return v
 }

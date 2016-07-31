@@ -10,12 +10,12 @@
  */
 
 import type { DocumentClient } from 'aws-sdk'
-import type { $Id, $Weight } from '../Types'
+import type { $Id, $Weight, $Page } from '../Types'
 
 import { DynamoDB } from 'aws-sdk'
 import https from 'https'
 
-import { assign, invariant } from '../utils'
+import { assign, invariant, chunk, flatten } from '../utils'
 import { Id } from '../Types'
 
 /**
@@ -43,12 +43,12 @@ export const TABLE_SYSTEM : Table = "system"
 
 type Index
   = "hk-weight-index"       // where hk is of the form [id]:[edge_label]
-  | "from-to-index"         // used to determine all adjacencies to a vertex
+  | "from-index"            // used to determine all adjacencies to a vertex
   | "label-key-index"       // used for quick retrieval of significant vertices or mappings
   | "label-updatedAt-index" // used for scanning the entire table for maintenance tasks
 
-export const INDEX_FROM_TO    : Index = "from-to-index"
 export const INDEX_ADJACENCY  : Index = "hk-weight-index"
+export const INDEX_EDGE_FROM  : Index = "from-index"
 export const INDEX_VERTEX_KEY : Index = "label-key-index"
 export const INDEX_VERTEX_ALL : Index = "label-updatedAt-index"
 
@@ -58,12 +58,13 @@ export const INDEX_VERTEX_ALL : Index = "label-updatedAt-index"
  */
 
 export type Graph =
-  { name    : string // graph name
-  , region  : Region // region
-  , env     : Env    // environment (non-production environments will log results)
+  { __GRAPH__ : true   // type validator
+  , name      : string // graph name
+  , region    : Region // region
+  , env       : Env    // environment (non-production environments will log results)
 
-  , id      : () => Promise<$Id>     // generate a fresh id
-  , weight  : () => Promise<$Weight> // generate a fresh weight
+  , id        : () => Promise<$Id>     // generate a fresh id
+  , weight    : () => Promise<$Weight> // generate a fresh weight
 
 /*
  * The graph exposes only batch read, query, and mutation operations,
@@ -72,17 +73,17 @@ export type Graph =
 
   , batchGet:
       ( table: Table
-      , keys: [any]
-      ) => Promise<[any]>
+      , keys: Array<any>
+      ) => Promise<Array<any>>
 
   , batchPut:
       ( table: Table
-      , items: [any]
+      , items: Array<any>
       ) => Promise<void>
 
   , batchDel:
       ( table: Table
-      , keys: [any]
+      , keys: Array<any>
       ) => Promise<void>
 
   , query:
@@ -90,14 +91,8 @@ export type Graph =
       , index: Index
       , params: any
       , limit: ?number
-      ) => Promise<QueryResult<any>>
+      ) => Promise<$Page<any>>
 
-  }
-
-export type QueryResult<a> =
-  { items: [a]
-  , count: number
-  , total?: number
   }
 
 /**
@@ -201,7 +196,8 @@ export function define
       }
 
     const graph =
-      { name
+      { __GRAPH__: true
+      , name
       , env
       , region
 
@@ -300,6 +296,8 @@ export function define
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
       , async query(table, IndexName, params, limit) {
+
+          // TODO: iterate until all results are fetched
           const TableName = TABLES[table]
           const { Items: items, Count: count } =
             await dynamo
@@ -307,7 +305,9 @@ export function define
               , 'query'
               , { TableName, IndexName, Limit: limit, ...params }
               )
-          if (!limit) return { items, count }
+
+          if (!limit)
+            return { items, count }
 
           const { Count: total } =
             await dynamo
@@ -333,17 +333,6 @@ const INVALID_CHAR = /[^a-zA-Z0-9-_]/
 
 const validateName = (name: string): mixed =>
   name && !name.match(INVALID_CHAR)
-
-function chunk<a>(arr: [a], n: number): [[a]] {
-  const chunks = []
-  for (let i = 0, j = arr.length; i < j; i += n)
-    chunks.push(arr.slice(i, i+n))
-  return chunks
-}
-
-function flatten<a>(arr: [[a]]): [a] {
-  return [].concat(...arr)
-}
 
 const httpOptions =
   { agent: new https.Agent

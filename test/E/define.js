@@ -8,8 +8,8 @@ test
   ( 'Creates an edge definition'
   , t => {
       t.is(DEFINED.label, 'Defined')
-      t.is(DEFINED.multiplicity.in, 'MANY')
-      t.is(DEFINED.multiplicity.out, 'ONE')
+      t.is(DEFINED.multiplicity[E.IN], 'MANY')
+      t.is(DEFINED.multiplicity[E.OUT], 'ONE')
     }
   )
 
