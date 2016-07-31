@@ -20,16 +20,11 @@ const g = G.define('my-graph')
 // create vertex definitions
 
 const USER = V.define('User')
-const POST = V.define('Post')
 const NOTE = V.define('Note')
-
-const ENTITY = V.union(USER, POST, NOTE)
-const WRITING = V.union(POST, NOTE)
 
 // create edge definitions
 
 const AUTHORED = E.define('Authored', E.ONE_TO_MANY)
-const SPONSORED = E.define('Sponsored', E.MANY_TO_MANY)
 
 const overview = async () => {
 
@@ -37,10 +32,68 @@ const overview = async () => {
   // G.generate will instantiate all the DynamoDB tables, indices, and system objects
   await G.generate(g)
 
-  const me = await V.create(g, USER, { name: "James", job: "Intern" })
-  const boss = await V.create(g, USER, { name: "Tyler", job: "CTO" })
+  // V.create
 
-  const newYearNewMe = await V.update(g, USER, me.id, { name: "James", job: "Engineer" })
+  const me = await V.create(g, USER, { name: "James", job: "Intern" })
+    // => { id: '3Rx', label: 'User', updatedAt: 14699502051042, attrs: { name: "James", job: "Intern" } }
+  const boss = await V.create(g, USER, { name: "Tyler", job: "CTO" })
+    // => { id: '3Ry', label: 'User', updatedAt: 14699502056492, attrs: { name: "Tyler", job: "CTO" }}
+  const note = await V.create(g, NOTE, { message: "some note" })
+    // => { id: '3Rz', label: 'Note', updatedAt: 14699502285314, attrs: { message: "some note" }}
+
+  // V.all
+
+  await V.all(g, USER)
+    // => TODO: document
+
+  // V.update
+
+  await V.update(g, USER, me.id, { name: "James", job: "Engineer" })
+    // => { id: '3Rx', label: 'User', updatedAt: 14699502496014, attrs: { name: "James", job: "Engineer" } }
+
+  // V.putByKey
+
+  await V.putByKey(g, NOTE, 'important', { message: 'Publish dynamo-graph!' })
+    // => { id: 'd7', label: 'Note', updatedAt: 1469950262268, key: 'important', attrs: { message: 'Publish dynamo-graph!' } }
+
+  // n.b. the id remains the same, the key uniquely identifies the vertex
+  const important = await V.putByKey(g, NOTE, 'important', { message: 'Published' })
+    // => { id: 'd7', label: 'Note', updatedAt: 1469950309677, key: 'important', attrs: { message: 'Published' } }
+
+  // E.set
+
+  const e1 = await E.set(g, important.id, AUTHORED, E.IN, E.GENERATE, me.id)
+    // => { from: 'd7', label: 'Authored', direction: '<', weight: 1042, to: '3Rx', updatedAt: 1469950464801 }
+
+  const e2 = await E.set(g, me.id, AUTHORED, E.OUT, +Date.now(), note.id)
+    // => { from: '3Rx', label: 'Authored', direction: '>', weight: 1469950468427, to: '3Rz', updatedat: 1469950468427 }
+
+  // E.get
+
+  await E.get(g, note.id, AUTHORED, E.IN, +Date.now(), me.id)
+    // => { from: '3Rz', label: 'Authored', direction: '<', weight: 1469950468427, to: '3Rx', updatedat: 1469950468427 }
+
+  // E.range
+
+  await E.range(g, me.id, AUTHORED, E.OUT)
+    // => { items: [ e2, e1 ], count: 2 }
+  await E.range(g, me.id, AUTHORED, E.OUT, { first: 1, after: 99999 })
+    // => { items: [ e1 ], count: 1, total: 1 }
+  await E.range(g, me.id, AUTHORED, E.OUT, { last: 1, before: -1 })
+    // => { items: [ e1 ], count: 1, total: 2 }
+
+  // Edge multiplicities are respected:
+  
+  await E.set(g, boss.id, AUTHORED, E.OUT, E.GENERATE, important.id)
+    // => { from: '3Ry', label: 'Authored', direction: '>', weight: 1043, to: 'd7', updatedAt: 1469981321205 }
+  await E.get(g, me.id, AUTHORED, E.OUT, important.id)
+    // => null
+  await E.get(g, important.id, AUTHORED, E.IN, me.id)
+    // => null
+
+  // E.remove
+  await E.remove(g, boss.id, AUTHORED, E.OUT, important.id)
+    // => { from: '3Ry', label: 'Authored', direction: '>', weight: 1043, to: 'd7', updatedAt: 1469981321205 }
 
 }
 ```

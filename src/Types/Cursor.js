@@ -21,11 +21,11 @@ export function parse(cursor: ?$Cursor = {}): ParsedCursor {
         , before
         } = (cursor : any)
 
-  const reverse: boolean = last > 0
+  const reverse: boolean = last > 0 || before !== undefined
 
   return {
       RangeCondition:
-        (before || after)
+        (reverse ? before : after)
         ? { ComparisonOperator: reverse ? 'GT' : 'LT'
           , AttributeValueList: [ reverse ? before : after ]
           }

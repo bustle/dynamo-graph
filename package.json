@@ -21,7 +21,8 @@
   "homepage": "https://github.com/bustlelabs/dynamo-graph#readme",
   "dependencies": {
     "aws-sdk": "^2.4.10",
-    "dataloader": "^1.2.0"
+    "dataloader": "^1.2.0",
+    "regenerator": "^0.8.46"
   },
   "devDependencies": {
     "ava": "^0.15.2",
