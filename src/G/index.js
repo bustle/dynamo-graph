@@ -9,14 +9,15 @@
  *      An implementation can be done in MongoDB, you know, if you're a "webscale" asshole
  */
 
-import type { DocumentClient } from 'aws-sdk'
-import type { $Id, $Weight, $Page } from '../Types'
+import type { $Id, $Weight, $Page, $Table, $TableRep } from '../Types'
+import type { Vertex } from '../V'
 
-import { DynamoDB } from 'aws-sdk'
-import https from 'https'
+import DataLoader from 'dataloader'
 
 import { assign, invariant, chunk, flatten } from '../utils'
-import { Id } from '../Types'
+import { Id, Table } from '../Types'
+
+import { documentClient, dynamo, batchGet, batchPut, batchDel } from './adapter'
 
 /**
  * G
@@ -26,17 +27,7 @@ import { Id } from '../Types'
  *         E is the set of edges
  *         σ is some object containing meta information
  *             such as the size of the graph, the last unique id, etc.
- */
-
-type Table = "vertex"
-           | "edge"
-           | "system"
-
-export const TABLE_VERTEX : Table = "vertex"
-export const TABLE_EDGE   : Table = "edge"
-export const TABLE_SYSTEM : Table = "system"
-
-/**
+ *
  * In order to perform the desired graph operations with reasonable performance,
  * we also assume the existence of the following indices:
  */
@@ -68,31 +59,24 @@ export type Graph =
 
 /*
  * The graph exposes only batch read, query, and mutation operations,
- * leaving the V, E, and Adj modules responsible for processing the data
+ * leaving the V and E modules responsible for processing the data
  */
 
-  , batchGet:
-      ( table: Table
-      , keys: Array<any>
-      ) => Promise<Array<any>>
+  , batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>>
+  , batchPut<K,V>(table: $Table<K,V>, items: Array<any>): Promise<void>
+  , batchDel<K,V>(table: $Table<K,V>, keys: Array<any>): Promise<void>
 
-  , batchPut:
-      ( table: Table
-      , items: Array<any>
-      ) => Promise<void>
-
-  , batchDel:
-      ( table: Table
-      , keys: Array<any>
-      ) => Promise<void>
-
-  , query:
-      ( table: Table
+  , query<K,V>
+      ( table: $Table<K,V>
       , index: Index
       , params: any
       , limit: ?number
-      ) => Promise<$Page<any>>
+      ): Promise<$Page<V>>
 
+/*
+ * For performance, we also expose a DataLoader instance for vertices
+ */
+  , VertexLoader: DataLoader<string,Vertex<any>>
   }
 
 /**
@@ -116,7 +100,7 @@ export const ENV_PRODUCTION  : Env = "production"
 export const ENV_BETA        : Env = "beta"
 export const ENV_DEVELOPMENT : Env = "development"
 
-type Region
+export type Region
   = "us-east-1"
   | "us-west-1"
   | "us-west-2"
@@ -187,13 +171,25 @@ export function define
       return g.graph
     }
 
-    const client = dynamoClient(region)
+    const client = documentClient(region)
 
-    const TABLES =
-      { [TABLE_VERTEX]: `${name}-vertex`
-      , [TABLE_EDGE]:   `${name}-edge`
-      , [TABLE_SYSTEM]: `${name}-system`
+    const VertexTable = Table.vertexTable(name)
+    const EdgeTable   = Table.edgeTable(name)
+    const SystemTable = Table.systemTable(name)
+
+    const reps: any =
+      { [Table.VERTEX]: VertexTable
+      , [Table.EDGE]:   EdgeTable
+      , [Table.SYSTEM]: SystemTable
       }
+
+    const VertexLoader: DataLoader<string, Vertex<any>> =
+      new DataLoader(async ids => {
+        const keys = ids.map(VertexTable.deserialize)
+        return batchGet(client, VertexTable, keys)
+      })
+
+    // TODO: EdgeLoader (that accounts for direction)
 
     const graph =
       { __GRAPH__: true
@@ -205,7 +201,7 @@ export function define
           const { Attributes } = await dynamo
             ( client
             , 'update'
-            , { TableName: TABLES[TABLE_SYSTEM]
+            , { TableName: reps[Table.SYSTEM].TableName
               , Key: { key: 'id' }
               , ...incrField('value')
               }
@@ -217,7 +213,7 @@ export function define
           const { Attributes } = await dynamo
             ( client
             , 'update'
-            , { TableName: TABLES[TABLE_SYSTEM]
+            , { TableName: reps[Table.SYSTEM].TableName
               , Key: { key: 'weight' }
               , ...incrField('value')
               }
@@ -225,81 +221,24 @@ export function define
           return Attributes.value
         }
 
-      , async batchGet(table, keys) {
-
-          const TableName = TABLES[table]
-          // execute gets in parallel
-          const reads : Promise<any>[] =
-            chunk(keys, 100).map(async chunk => {
-              const { Responses } = await dynamo
-                ( client
-                , 'batchGet'
-                , { RequestItems: { [TableName]: { Keys: chunk } }
-                  }
-                )
-              return Responses[TableName]
-            })
-
-          const results : any[] = flatten(await Promise.all(reads))
-          const resultMap : { [key: string]: any } = {}
-
-          // Dynamo does not guarantee order in the response,
-          // so we must reproduce the array oureslves:
-
-          switch (table) {
-
-            case TABLE_VERTEX:
-              results.forEach(v => assign(resultMap, v.id, v))
-              return keys.map(({ id }) => resultMap[id])
-
-            case TABLE_EDGE:
-              results.forEach(e => assign(resultMap, `${e.hk}$${e.to}`, e))
-              return keys.map(({ hk, to }) => resultMap[`${hk}$${to}`])
-
-            case TABLE_SYSTEM:
-              results.forEach(o => assign(resultMap, o.key, o))
-              return keys.map(({ key }) => resultMap[key])
-
-            default:
-              return []
-          }
+      , batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>> {
+          return batchGet(client, reps[table], keys)
         }
-
-      , async batchPut(table, items) {
-          const TableName : string = TABLES[table]
-          const chunks = chunk(items, 100)
-          // execute each mutation chunk in serial
-          for (let chunk of chunks) {
-            const requests = chunk.map(Item => ({ PutRequest: { Item } }))
-            await dynamo
-              ( client
-              , 'batchWrite'
-              , { RequestItems: { [TableName]: requests } }
-              )
-          }
+      , batchPut<K,V>(table: $Table<K,V>, items: Array<V>): Promise<void> {
+          return batchPut(client, reps[table], items)
         }
-
-      , async batchDel(table, keys) {
-          const TableName = TABLES[table]
-          const chunks = chunk(keys, 100)
-          // execute each mutation batch in serial
-          for (let chunk of chunks) {
-            const requests = chunk.map(Key => ({ DeleteRequest: { Key } }))
-            await dynamo
-              ( client
-              , 'batchWrite'
-              , { RequestItems: { [TableName]: requests } }
-              )
-          }
+      , batchDel<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<void> {
+          return batchDel(client, reps[table], keys)
         }
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
-      , async query(table, IndexName, params, limit) {
+      , async query<K,V>(table: $Table<K,V>, IndexName, params, limit): Promise<$Page<V>> {
 
           // TODO: iterate until all results are fetched
-          const TableName = TABLES[table]
-          const { Items: items, Count: count } =
+          const { TableName } = reps[table]
+
+          const { Items: items, Count: count }: any =
             await dynamo
               ( client
               , 'query'
@@ -317,6 +256,7 @@ export function define
               )
           return { items, count, total }
         }
+      , VertexLoader
       }
 
     graphs[name] = { graph, env, region }
@@ -331,39 +271,12 @@ export { default as generate } from './generate'
 
 const INVALID_CHAR = /[^a-zA-Z0-9-_]/
 
+const normalizeVertexKey = ({ id }): string => id
+const normalizeEdgeKey = ({ hk, to }): string => `${hk}~$~${to}`
+const normalizeSystemKey = ({ key }): string => key
+
 const validateName = (name: string): mixed =>
   name && !name.match(INVALID_CHAR)
-
-const httpOptions =
-  { agent: new https.Agent
-    ( { rejectUnauthorized: true
-      , secureProtocol: 'TLSv1_method'
-      , ciphers: 'ALL'
-      }
-    )
-  }
-
-const dynamoClient = (region: Region): DocumentClient =>
-  new DynamoDB.DocumentClient
-  ( { region // TODO: handle the local case
-    , httpOptions
-    }
-  )
-
-const dynamo =
-  ( client: DocumentClient
-  , job: string
-  , params: mixed
-  ): Promise<any> =>
-    new Promise(
-      (resolve, reject) =>
-        client[job]
-          ( params
-          , (err, data) =>
-              err ? reject(err)
-                  : resolve(data)
-          )
-    )
 
 const incrField =
   ( name: string

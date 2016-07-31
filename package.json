@@ -6,11 +6,11 @@
   "scripts": {
     "compile": "NODE_ENV=production babel -d lib/ src/",
     "flow": "flow && npm run flow:check",
-    "flow:check": "flow check --all",
+    "flow:check": "flow check",
     "flow:stop": "flow stop",
     "test": "ava",
     "test:serial": "ava --serial",
-    "test:watch": "ava --watch",
+    "test:watch": "ava --serial --watch",
     "prepublish": "npm run compile"
   },
   "author": "James Yu",

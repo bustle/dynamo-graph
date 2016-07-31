@@ -83,3 +83,21 @@ export type $Page<a> =
   , count: number
   , total?: number
   }
+
+/**
+ * Table
+ *
+ * a table describes a dynamodb table, as well as the methods necessary
+ * to create a dataloader instance
+ */
+
+export type $Table<K, V> = "vertex" | "edge" | "system"
+
+export * as Table from './Table'
+
+export type $TableRep<K, V> =
+  { TableName: string
+  , serialize: (key: K | V) => string
+  , deserialize: (key: string) => K
+  }
+

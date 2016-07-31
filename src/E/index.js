@@ -4,12 +4,10 @@ import type { $Id, $Label, $Weight, $Cursor, $Page } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
-import { TABLE_EDGE
-       , INDEX_ADJACENCY
-       } from '../G'
+import { INDEX_ADJACENCY } from '../G'
 
 import { invariant, maybe } from '../utils'
-import { Cursor } from '../Types'
+import { Table, Cursor } from '../Types'
 
 /**
  * E
@@ -27,7 +25,7 @@ type Direction = ">" | "<"
 export const OUT = ">"
 export const IN  = "<"
 
-type Edge<a> =
+export type Edge<a> =
   { from      : $Id
   , label     : $Label<Edge<a>>
   , direction : Direction
@@ -89,7 +87,7 @@ export const  ONE_TO_MANY : Multiplicity = { [IN]:  "ONE", [OUT]: "MANY" }
 export const MANY_TO_ONE  : Multiplicity = { [IN]: "MANY", [OUT]: "ONE"  }
 export const  ONE_TO_ONE  : Multiplicity = { [IN]:  "ONE", [OUT]: "ONE"  }
 
-const defs : { [key: string]: { mstring: string, def: EdgeDef<mixed> } } = {}
+const defs : { [key: string]: { mstring: string, def: EdgeDef<any> } } = {}
 
 export function define<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): EdgeDef<a> {
 
@@ -117,6 +115,7 @@ export function define<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): E
   const def = { __EDGE_DEF__: true, label, multiplicity }
 
   defs[label] = { mstring, def }
+
 
   return def
 
@@ -146,9 +145,9 @@ export async function set<a>
   , attrs: a
   ): Promise<Edge<a>> {
 
-    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g}"`)
+    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(from, `E.get expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def}"`)
+    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def.toString()}"`)
     invariant(isDirection(direction), `E.get expected Direction for 4th argument, got "${direction}"`)
     // TODO: validate weight
     invariant(to, `E.get expected Id for 6th argument, got "${to}"`)
@@ -181,7 +180,7 @@ export async function set<a>
     }
 
     await g.batchPut
-      ( TABLE_EDGE
+      ( Table.EDGE
       , [ serialize(edge)
         , serialize(invert(edge))
         ]
@@ -207,14 +206,14 @@ export async function get<a>
   ): Promise<?Edge<a>> {
 
     // type validations
-    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g}"`)
+    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(from, `E.get expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def}"`)
+    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def.toString()}"`)
     invariant(isDirection(direction), `E.get expected Direction for 4th argument, got "${direction}"`)
     invariant(to, `E.get expected Id for 5th argument, got "${to}"`)
 
     const [ edge ]: Array<?SerializedEdge<a>> = await g.batchGet
-      ( TABLE_EDGE
+      ( Table.EDGE
       , [{ hk: `${from}${direction}${def.label}`, to }]
       )
 
@@ -241,16 +240,16 @@ export async function range<a>
   ): Promise<$Page<Edge<a>>> {
 
     // type validations
-    invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g}"`)
+    invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(from, `E.range expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.range expected EdgeDef for 3rd argument, got "${def}"`)
+    invariant(def.__EDGE_DEF__, `E.range expected EdgeDef for 3rd argument, got "${def.toString()}"`)
     invariant(isDirection(direction), `E.range expected Direction for 4th argument, got "${direction}"`)
 
     const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
 
     const { items, ...pageInfo }: $Page<SerializedEdge<a>> =
       await g.query
-        ( TABLE_EDGE
+        ( Table.EDGE
         , INDEX_ADJACENCY
         , { KeyConditions:
             { hk:     { ComparisonOperator: 'EQ'
@@ -289,7 +288,7 @@ export async function remove<a>
     invariant(e, 'Cannot remove an edge that does not exist')
 
     await g.batchDel
-      ( TABLE_EDGE
+      ( Table.EDGE
       , [ { hk: `${from}${direction}${def.label}`, to }
         , { hk: `${to}${direction === OUT ? IN : OUT}${def.label}`, to: from }
         ]
@@ -306,7 +305,7 @@ export async function remove<a>
  * As a slight optimization we also serialize
  */
 
-type SerializedEdge<a> =
+export type SerializedEdge<a> =
   { from      : $Id
   , label     : $Label<Edge<a>>
   , out       : boolean

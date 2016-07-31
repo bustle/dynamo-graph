@@ -4,9 +4,7 @@ import type { $Id, $Label, $Key, $Cursor, $Page } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
-import { TABLE_VERTEX
-       , TABLE_EDGE
-       , INDEX_EDGE_FROM
+import { INDEX_EDGE_FROM
        , INDEX_VERTEX_KEY
        , INDEX_VERTEX_ALL
        } from '../G'
@@ -14,7 +12,7 @@ import { TABLE_VERTEX
 import { OUT, IN } from '../E'
 
 import { invariant, maybe, flatten } from '../utils'
-import { Cursor } from '../Types'
+import { Table, Cursor } from '../Types'
 
 /**
  * V
@@ -25,7 +23,7 @@ import { Cursor } from '../Types'
  *
  */
 
-type Vertex<a> =
+export type Vertex<a> =
   { id    : $Id
   , label : $Label<Vertex<a>>
   , attrs : a
@@ -115,12 +113,18 @@ export async function putByKey<a>(g: Graph, def: VertexDef<a>, key: $Key<a>, att
 }
 
 async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a, key: ?$Key<a>): Promise<Vertex<a>> {
+
   const v: Vertex<a> =
     { id, label, attrs        // copy attributes
     , updatedAt: +Date.now()  // ensure updatedAt field is changed with each mutation
     , ...(key ? { key } : {}) // avoid undefined fields
     }
-  await g.batchPut(TABLE_VERTEX, [v])
+
+  await g.batchPut(Table.VERTEX, [v])
+
+  // prime cache
+  g.VertexLoader.clear(id).prime(id, v)
+
   return v
 }
 
@@ -134,22 +138,19 @@ async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a
 
 export async function get(g: Graph, id: $Id): Promise<?Vertex<mixed>> {
 
-  invariant(g.__GRAPH__, `V.get expected Graph for 1st argument, got "${g}"`)
+  invariant(g.__GRAPH__, `V.get expected Graph for 1st argument, got "${g.toString()}"`)
   invariant(id,          `V.get expected Id for 2nd argument, got "${id}"`)
 
-  const [ v ]: Array<?Vertex<mixed>> = await getMany(g, [id])
-  return v
+  return g.VertexLoader.load(id)
 }
 
 // V.getMany :: Graph -> [ Id ] -> [ Vertex (∃ a) ? ]
 export async function getMany(g: Graph, ids: Array<$Id>): Promise<Array<?Vertex<mixed>>> {
 
-  invariant(g.__GRAPH__,        `V.getMany expected Graph for 1st argument, got "${g}"`)
+  invariant(g.__GRAPH__,        `V.getMany expected Graph for 1st argument, got "${g.toString()}"`)
   invariant(Array.isArray(ids), `V.getMany expected [Id] for 2nd argument, got "${ids}"`)
 
-  const keys: Array<{ id: $Id }> = ids.map(id => ({ id }))
-  const vertices: Array<?Vertex<mixed>> = await g.batchGet(TABLE_VERTEX, keys)
-  return vertices
+  return g.VertexLoader.loadMany(ids)
 }
 
 /**
@@ -168,13 +169,13 @@ export async function getByKey<a>
   , key: $Key<a>
   ): Promise<?Vertex<a>> {
 
-    invariant(g.__GRAPH__,        `V.getByKey expected Graph for 1st argument, got "${g}"`)
-    invariant(def.__VERTEX_DEF__, `V.getByKey expected VertexDef for 2nd argument, got "${def}"`)
+    invariant(g.__GRAPH__,        `V.getByKey expected Graph for 1st argument, got "${g.toString()}"`)
+    invariant(def.__VERTEX_DEF__, `V.getByKey expected VertexDef for 2nd argument, got "${def.toString()}"`)
     invariant(key,                `V.getByKey expected Key for 3rd argument, got "${key}"`)
 
     const { items: [ v ] }: $Page<Vertex<a>> =
       await g.query
-        ( TABLE_VERTEX
+        ( Table.VERTEX
         , INDEX_VERTEX_KEY
         , { KeyConditions:
             { label: { ComparisonOperator: 'EQ', AttributeValueList: [ def.label ] }
@@ -203,13 +204,13 @@ export async function all<a>
   , cursor: ?$Cursor = {}
   ): Promise<$Page<Vertex<a>>> {
 
-    invariant(g.__GRAPH__,        `V.all expected Graph for 1st argument, got "${g}"`)
+    invariant(g.__GRAPH__,        `V.all expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(def.__VERTEX_DEF__, `V.all expected VertexDef for 2nd argument, got "${def}"`)
 
     const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
 
     return g.query
-      ( TABLE_VERTEX
+      ( Table.VERTEX
       , INDEX_VERTEX_ALL
       , { KeyConditions:
           { label: { ComparisonOperator: 'EQ'
@@ -241,7 +242,7 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
   // TODO: delete adjacencies
   const { items: edges } =
     await g.query
-      ( TABLE_EDGE
+      ( Table.EDGE
       , INDEX_EDGE_FROM
       , { KeyConditions:
           { from: { ComparisonOperator: 'EQ', AttributeValueList: [ v.id ] }
@@ -261,8 +262,11 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
       )
     )
 
-  await g.batchDel(TABLE_EDGE, edgeKeys)
-  await g.batchDel(TABLE_VERTEX, [{ id }])
+  await g.batchDel(Table.EDGE, edgeKeys)
+  await g.batchDel(Table.VERTEX, [{ id }])
+
+  // sync loader
+  g.VertexLoader.clear(id)
 
   return v
 }

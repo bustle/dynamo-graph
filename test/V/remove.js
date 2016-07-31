@@ -62,8 +62,12 @@ test
         await Promise.all(
           vs.map(async ({ id }) => {
             for (const EDGE of EDGES) {
-              t.falsy(await E.get(g, v.id, EDGE, E.OUT, id))
-              t.falsy(await E.get(g, v.id, EDGE, E.IN, id))
+              const [ e1, e2 ] = await Promise.all(
+                [ E.get(g, v.id, EDGE, E.OUT, id)
+                , E.get(g, v.id, EDGE, E.IN, id)
+                ]
+              )
+              t.falsy(e1 || e2)
             }
           })
         )

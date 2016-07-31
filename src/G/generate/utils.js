@@ -1,4 +1,5 @@
 import type { DynamoDB } from 'aws-sdk'
+import type { Graph } from '../index'
 
 /* @flow */
 

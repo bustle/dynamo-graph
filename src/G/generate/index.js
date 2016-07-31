@@ -4,20 +4,12 @@ import type { Graph } from '../index'
 import type { Context } from './utils'
 
 import { DynamoDB } from 'aws-sdk'
-import https from 'https'
 
 import generateSystem from './system'
 import generateVertex from './vertex'
 import generateEdge from './edge'
 
-const httpOptions =
-  { agent: new https.Agent
-    ( { rejectUnauthorized: true
-      , secureProtocol: 'TLSv1_method'
-      , ciphers: 'ALL'
-      }
-    )
-  }
+import { httpOptions } from '../adapter'
 
 const indent = (ctx : Context): Context =>
   ( { ...ctx

@@ -12,5 +12,11 @@ declare module 'aws-sdk' {
     listTables(params: Params): Response;
     createTable(params: Params): Response;
     waitFor(state: "tableExists" | "tableNotExists", params: Params): Response;
+    getItem(params: Params): Response;
+    putItem(params: Params): Response;
+  }
+
+  declare class Endpoint {
+
   }
 }
