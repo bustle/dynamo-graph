@@ -3,6 +3,8 @@ declare module 'aws-sdk' {
   declare type Params = any
   declare type Response = any
 
+  declare var config: any
+
   declare class DocumentClient {
     [key: string]: (params: Params) => Response;
   }

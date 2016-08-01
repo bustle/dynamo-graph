@@ -53,11 +53,6 @@ test
         const [ v ] = vs
         await V.remove(g, v.id)
 
-        // give it time to chill
-        // seems like this occasionally fails on the dynamo end?
-        // looks like the index doesn't get updated quickly enough for the test
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
         // assert no edges persist
         await Promise.all(
           vs.map(async ({ id }) => {

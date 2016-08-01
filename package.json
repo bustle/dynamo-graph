@@ -1,7 +1,7 @@
 {
   "name": "dynamo-graph",
   "description": "Low-level graph database operations implemented in DynamoDB.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "lib/index.js",
   "scripts": {
     "compile": "NODE_ENV=production babel -d lib/ src/",
@@ -9,8 +9,7 @@
     "flow:check": "flow check",
     "flow:stop": "flow stop",
     "test": "ava",
-    "test:serial": "ava --serial",
-    "test:watch": "ava --serial --watch",
+    "dev": "ava --watch",
     "prepublish": "npm run compile"
   },
   "author": "James Yu",
@@ -22,6 +21,7 @@
   "dependencies": {
     "aws-sdk": "^2.4.10",
     "babel-runtime": "^6.11.6",
+    "bluebird": "^3.4.1",
     "dataloader": "^1.2.0"
   },
   "devDependencies": {

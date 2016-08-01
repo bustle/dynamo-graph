@@ -17,7 +17,7 @@ import DataLoader from 'dataloader'
 import { assign, invariant, chunk, flatten } from '../utils'
 import { Id, Table } from '../Types'
 
-import { documentClient, dynamo, batchGet, batchPut, batchDel } from './adapter'
+import { documentClient, batchGet, batchPut, batchDel } from './adapter'
 
 /**
  * G
@@ -198,26 +198,22 @@ export function define
       , region
 
       , async id() {
-          const { Attributes } = await dynamo
-            ( client
-            , 'update'
-            , { TableName: reps[Table.SYSTEM].TableName
-              , Key: { key: 'id' }
-              , ...incrField('value')
-              }
-            )
+          const { Attributes } = await client.updateAsync(
+            { TableName: reps[Table.SYSTEM].TableName
+            , Key: { key: 'id' }
+            , ...incrField('value')
+            }
+          )
           return Id.fromNat(Attributes.value)
         }
 
       , async weight() {
-          const { Attributes } = await dynamo
-            ( client
-            , 'update'
-            , { TableName: reps[Table.SYSTEM].TableName
-              , Key: { key: 'weight' }
-              , ...incrField('value')
-              }
-            )
+          const { Attributes } = await client.updateAsync(
+            { TableName: reps[Table.SYSTEM].TableName
+            , Key: { key: 'weight' }
+            , ...incrField('value')
+            }
+          )
           return Attributes.value
         }
 
@@ -239,21 +235,17 @@ export function define
           const { TableName } = reps[table]
 
           const { Items: items, Count: count }: any =
-            await dynamo
-              ( client
-              , 'query'
-              , { TableName, IndexName, Limit: limit, ...params }
-              )
+            await client.queryAsync(
+              { TableName, IndexName, Limit: limit, ...params }
+            )
 
           if (!limit)
             return { items, count }
 
           const { Count: total } =
-            await dynamo
-              ( client
-              , 'query'
-              , { TableName, IndexName, Select: 'COUNT', ...params }
-              )
+            await client.queryAsync(
+              { TableName, IndexName, Select: 'COUNT', ...params }
+            )
           return { items, count, total }
         }
       , VertexLoader

@@ -38,8 +38,8 @@ export default async function(ctx: Context, tables: Array<string>) {
           }
         ]
       , ProvisionedThroughput:
-        { ReadCapacityUnits: 5
-        , WriteCapacityUnits: 5
+        { ReadCapacityUnits: 10
+        , WriteCapacityUnits: 10
         }
       , GlobalSecondaryIndexes:
         [ { IndexName: INDEX_EDGE_FROM
@@ -57,8 +57,8 @@ export default async function(ctx: Context, tables: Array<string>) {
               ]
             }
           , ProvisionedThroughput:
-            { ReadCapacityUnits: 5
-            , WriteCapacityUnits: 5
+            { ReadCapacityUnits: 10
+            , WriteCapacityUnits: 10
             }
           }
         ]
