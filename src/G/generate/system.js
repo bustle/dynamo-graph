@@ -18,9 +18,6 @@ export default async function(ctx: Context, tables: Array<string>) {
         [ { AttributeName: 'key'
           , AttributeType: 'S'
           }
-        , { AttributeName: 'value'
-          , AttributeType: 'N'
-          }
         ]
       , KeySchema:
         [ { AttributeName: 'key'
