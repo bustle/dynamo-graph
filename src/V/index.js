@@ -185,6 +185,8 @@ export async function getByKey<a>
           }
         )
 
+    if (v) g.VertexLoader.prime(v.id, v)
+
     return v
 
   }
