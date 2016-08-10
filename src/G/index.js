@@ -193,6 +193,23 @@ export function define
         return batchGet(client, VertexTable, keys)
       })
 
+    const isProd: boolean = env === ENV_PRODUCTION
+
+    const logStart = name => {
+      if (!isProd) {
+        const opId = Math.floor(Math.random() * 99999) + 1
+        console.log(`Dispatching ${name} (opId: ${opId})`)
+        console.time(`${name} (opId: ${opId})`)
+        return opId
+      }
+    }
+
+    const logEnd = (name, opId) => {
+      if (!isProd && opId) {
+        console.time(`${name} (opId: ${opId})`)
+      }
+    }
+
     // TODO: EdgeLoader (that accounts for direction)
 
     const graph =
@@ -221,14 +238,23 @@ export function define
           return Attributes.value
         }
 
-      , batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>> {
-          return batchGet(client, reps[table], keys)
+      , async batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>> {
+          const log = logStart(`batch get \`${table}\``)
+          const result = await batchGet(client, reps[table], keys)
+          logEnd(`batch get \`${table}\``, log)
+          return result
         }
-      , batchPut<K,V>(table: $Table<K,V>, items: Array<V>): Promise<void> {
-          return batchPut(client, reps[table], items)
+      , async batchPut<K,V>(table: $Table<K,V>, items: Array<V>): Promise<void> {
+          const log = logStart(`batch put \`${table}\``)
+          const result = await batchPut(client, reps[table], items)
+          logEnd(`batch put \`${table}\``)
+          return result
         }
-      , batchDel<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<void> {
-          return batchDel(client, reps[table], keys)
+      , async batchDel<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<void> {
+          const log = logStart(`batch del \`${table}\``)
+          const result = await batchDel(client, reps[table], keys)
+          logEnd(`batch del \`${table}\``, log)
+          return result
         }
 
       // TODO: it would be nice to decouple the query params from dynamodb
@@ -236,6 +262,8 @@ export function define
       , async query<K,V>(table: $Table<K,V>, IndexName, params): Promise<Array<V>> {
           // TODO: iterate until all results are fetched
           const { TableName } = reps[table]
+
+          const log = logStart(`query \`${table}:${IndexName}\``)
           const { Items } =
             await client.queryAsync(
               { TableName
@@ -243,6 +271,9 @@ export function define
               , ...params
               }
             )
+
+          logEnd(`query \`${table}:${IndexName}\``, log)
+
           return Items
       }
 
