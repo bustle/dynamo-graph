@@ -206,7 +206,7 @@ export function define
 
     const logEnd = (name, opId) => {
       if (!isProd && opId) {
-        console.time(`${name} (opId: ${opId})`)
+        console.timeEnd(`${name} (opId: ${opId})`)
       }
     }
 
