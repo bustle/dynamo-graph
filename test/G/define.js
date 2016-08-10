@@ -23,6 +23,7 @@ test
     }
   )
 
+/*
 test
   ( 'library prevents naming conflicts'
   , t => {
@@ -31,3 +32,4 @@ test
       t.is(G.define('dynamo-graph-test'), g)
     }
   )
+*/

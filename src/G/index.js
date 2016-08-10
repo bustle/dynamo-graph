@@ -172,7 +172,8 @@ export function define
         ( g.env === env && g.region === region
         , `There already exists a distcint graph named "${name}"`
         )
-      return g.graph
+      // we want to create a new graph instance each time
+      // return g.graph
     }
 
     const client = documentClient(region)
