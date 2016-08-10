@@ -42,10 +42,8 @@ test
 
           // paginates in correct order
           const all = await E.range(g, id, ADJ_TO, DIR)
-          t.is(all.count, M)
-          t.is(all.total, undefined)
-          assertOrdered(t, all.items)
-          for (const e of all.items) {
+          assertOrdered(t, all)
+          for (const e of all) {
             t.is(e.label, 'AdjTo')
             t.is(e.direction, DIR)
           }
@@ -53,40 +51,18 @@ test
           // forward pagination works
 
           const pf1 = await E.range(g, id, ADJ_TO, DIR, { first: P })
-          t.is(pf1.items.length, pf1.count)
-          t.is(pf1.count, P)
-          t.is(pf1.total, M)
+          const pf2 = await E.range(g, id, ADJ_TO, DIR, { first: P, after: pf1[P-1].weight })
+          const pf3 = await E.range(g, id, ADJ_TO, DIR, { after: pf2[P-1].weight })
 
-          const pf2 = await E.range(g, id, ADJ_TO, DIR, { first: P, after: pf1.items[P-1].weight })
-          t.is(pf2.items.length, pf2.count)
-          t.is(pf2.count, P)
-          t.is(pf2.total, M - P)
-
-          const pf3 = await E.range(g, id, ADJ_TO, DIR, { after: pf2.items[P-1].weight })
-          t.is(pf3.items.length, pf3.count)
-          t.is(pf3.count, M - P - P)
-          t.is(pf3.total, undefined)
-
-          t.deepEqual([].concat(pf1.items, pf2.items, pf3.items), all.items)
+          t.deepEqual([].concat(pf1, pf2, pf3), all)
 
           // backwards pagination works
 
           const pr1 = await E.range(g, id, ADJ_TO, DIR, { last: P })
-          t.is(pr1.items.length, pr1.count)
-          t.is(pr1.count, P)
-          t.is(pr1.total, M)
+          const pr2 = await E.range(g, id, ADJ_TO, DIR, { last: P, before: pr1[P-1].weight })
+          const pr3 = await E.range(g, id, ADJ_TO, DIR, { before: pr2[P-1].weight })
 
-          const pr2 = await E.range(g, id, ADJ_TO, DIR, { last: P, before: pr1.items[P-1].weight })
-          t.is(pr2.items.length, pr2.count)
-          t.is(pr2.count, P)
-          t.is(pr2.total, M - P)
-
-          const pr3 = await E.range(g, id, ADJ_TO, DIR, { before: pr2.items[P-1].weight })
-          t.is(pr3.items.length, pr3.count)
-          t.is(pr3.count, M - P - P)
-          t.is(pr3.total, undefined)
-
-          t.deepEqual([].concat(pr1.items, pr2.items, pr3.items).reverse(), all.items)
+          t.deepEqual([].concat(pr1, pr2, pr3).reverse(), all)
 
         }
       }
@@ -110,16 +86,16 @@ test
         const e3 = await E.set(g, a, ADJ_TO, DIR, -1, d)
 
         const all = await E.range(g, a, ADJ_TO, DIR)
-        assertOrdered(t, all.items)
-        t.deepEqual([ e2, e1, e3 ], all.items)
+        assertOrdered(t, all)
+        t.deepEqual([ e2, e1, e3 ], all)
 
         const forward = await E.range(g, a, ADJ_TO, DIR, { first: 3 })
-        assertOrdered(t, forward.items)
-        t.deepEqual([ e2, e1, e3 ], forward.items)
+        assertOrdered(t, forward)
+        t.deepEqual([ e2, e1, e3 ], forward)
 
         const reverse = await E.range(g, a, ADJ_TO, DIR, { last: 3 })
-        assertOrdered(t, reverse.items, true)
-        t.deepEqual([ e3, e1, e2 ], reverse.items)
+        assertOrdered(t, reverse, true)
+        t.deepEqual([ e3, e1, e2 ], reverse)
 
       }
 

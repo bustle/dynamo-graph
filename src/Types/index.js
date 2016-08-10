@@ -78,10 +78,8 @@ type ReverseCursor =
   , before?: number
   }
 
-export type $Page<a> =
-  { items: Array<a>
-  , count: number
-  , total?: number
+export type $PageInfo<a> =
+  { count?: number
   }
 
 /**

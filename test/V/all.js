@@ -23,8 +23,8 @@ test
 
       await Promise.all(
         [].concat
-          ( prev1.items.map(v => V.remove(g, v.id))
-          , prev2.items.map(v => V.remove(g, v.id))
+          ( prev1.map(v => V.remove(g, v.id))
+          , prev2.map(v => V.remove(g, v.id))
           )
       )
 
@@ -36,49 +36,37 @@ test
           )
       )
 
+      // TODO: test count method
+
       // retrieve a whole index
       const all1 = await V.all(g, ALL_1)
-      t.is(all1.count, 10)
-      t.is(all1.total, undefined)
-      for (const v of all1.items) {
+      for (const v of all1) {
         t.is(v.label, 'All1')
-        for (const v2 of all1.items)
+        for (const v2 of all1)
           v === v2 || t.notDeepEqual(v, v2)
       }
 
       // forward pagination works
 
       const pagef1 = await V.all(g, ALL_1, { first: P })
-      t.is(pagef1.items.length, P)
-      t.is(pagef1.count, P)
-      t.is(pagef1.total, N_1)
-      const pagef2 = await V.all(g, ALL_1, { first: P, after: pagef1.items[P-1].updatedAt })
-      t.is(pagef2.items.length, P)
-      t.is(pagef2.count, P)
-      t.is(pagef2.total, N_1 - P)
-      const pagef3 = await V.all(g, ALL_1, { after: pagef2.items[P-1].updatedAt })
-      t.is(pagef3.items.length, N_1 - P - P)
-      t.is(pagef3.count, N_1 - P - P)
-      t.is(pagef3.total, undefined)
+      t.is(pagef1.length, P)
+      const pagef2 = await V.all(g, ALL_1, { first: P, after: pagef1[P-1].updatedAt })
+      t.is(pagef2.length, P)
+      const pagef3 = await V.all(g, ALL_1, { after: pagef2[P-1].updatedAt })
+      t.is(pagef3.length, N_1 - P - P)
 
-      t.deepEqual([].concat(pagef1.items, pagef2.items, pagef3.items), all1.items)
+      t.deepEqual([].concat(pagef1, pagef2, pagef3), all1)
 
       // reverse pagination works
 
       const pager1 = await V.all(g, ALL_1, { last: P })
-      t.is(pager1.items.length, P)
-      t.is(pager1.count, P)
-      t.is(pager1.total, N_1)
-      const pager2 = await V.all(g, ALL_1, { last: P, before: pager1.items[P-1].updatedAt })
-      t.is(pager2.items.length, P)
-      t.is(pager2.count, P)
-      t.is(pager2.total, N_1 - P)
-      const pager3 = await V.all(g, ALL_1, { before: pager2.items[P-1].updatedAt })
-      t.is(pager3.items.length, N_1 - P - P)
-      t.is(pager3.count, N_1 - P - P)
-      t.is(pager3.total, undefined)
+      t.is(pager1.length, P)
+      const pager2 = await V.all(g, ALL_1, { last: P, before: pager1[P-1].updatedAt })
+      t.is(pager2.length, P)
+      const pager3 = await V.all(g, ALL_1, { before: pager2[P-1].updatedAt })
+      t.is(pager3.length, N_1 - P - P)
 
-      t.deepEqual([].concat(pager1.items, pager2.items, pager3.items).reverse(), all1.items)
+      t.deepEqual([].concat(pager1, pager2, pager3).reverse(), all1)
 
     }
   )

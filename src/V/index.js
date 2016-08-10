@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { $Id, $Label, $Key, $Cursor, $Page } from '../Types'
+import type { $Id, $Label, $Key, $Cursor, $PageInfo } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
@@ -173,7 +173,7 @@ export async function getByKey<a>
     invariant(def.__VERTEX_DEF__, `V.getByKey expected VertexDef for 2nd argument, got "${def.toString()}"`)
     invariant(key,                `V.getByKey expected Key for 3rd argument, got "${key}"`)
 
-    const { items: [ v ] }: $Page<Vertex<a>> =
+    const [ v ]: Array<Vertex<a>> =
       await g.query
         ( Table.VERTEX
         , INDEX_VERTEX_KEY
@@ -181,7 +181,7 @@ export async function getByKey<a>
             { label: { ComparisonOperator: 'EQ', AttributeValueList: [ def.label ] }
             , key:   { ComparisonOperator: 'EQ', AttributeValueList: [ key   ] }
             }
-          , Limit: 1 // we do not want pagination data
+          , Limit: 1
           }
         )
 
@@ -202,7 +202,7 @@ export async function all<a>
   ( g: Graph
   , def: VertexDef<a>
   , cursor: ?$Cursor = {}
-  ): Promise<$Page<Vertex<a>>> {
+  ): Promise<Array<Vertex<a>>> {
 
     invariant(g.__GRAPH__,        `V.all expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(def.__VERTEX_DEF__, `V.all expected VertexDef for 2nd argument, got "${def}"`)
@@ -218,11 +218,36 @@ export async function all<a>
                    }
           , ...maybe('updatedAt', RangeCondition)
           }
+        , Limit
         , ScanIndexForward
         }
-      , Limit
       )
 
+  }
+
+export async function count<a>
+  ( g: Graph
+  , def: VertexDef<a>
+  , cursor: ?$Cursor = {}
+  ): Promise<$PageInfo> {
+
+    invariant(g.__GRAPH__,        `V.count expected Graph for 1st argument, got "${g.toString()}"`)
+    invariant(def.__VERTEX_DEF__, `V.count expected VertexDef for 2nd argument, got "${def}"`)
+
+    const { RangeCondition, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
+
+    return g.count
+      ( Table.VERTEX
+      , INDEX_VERTEX_ALL
+      , { KeyConditions:
+          { label: { ComparisonOperator: 'EQ'
+                   , AttributeValueList: [ def.label ]
+                   }
+          , ...maybe('updatedAt', RangeCondition)
+          }
+        , ScanIndexForward
+        }
+      )
   }
 
 /**
@@ -240,7 +265,7 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
   invariant(v, 'Cannot remove a vertex that does not exist')
 
   // TODO: delete adjacencies
-  const { items: edges } =
+  const edges =
     await g.query
       ( Table.EDGE
       , INDEX_EDGE_FROM

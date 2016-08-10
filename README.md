@@ -76,11 +76,11 @@ const overview = async () => {
   // E.range
 
   await E.range(g, me.id, AUTHORED, E.OUT)
-    // => { items: [ e2, e1 ], count: 2 }
+    // => [ e2, e1 ]
   await E.range(g, me.id, AUTHORED, E.OUT, { first: 1, after: 99999 })
-    // => { items: [ e1 ], count: 1, total: 1 }
+    // => [ e1 ]
   await E.range(g, me.id, AUTHORED, E.OUT, { last: 1, before: -1 })
-    // => { items: [ e1 ], count: 1, total: 2 }
+    // => [ e1 ]
 
   // Edge multiplicities are respected:
   
@@ -138,6 +138,7 @@ type Vertex<a> =
 ### `V.getMany(g, ids)`
 ### `V.getByKey(g, def, key)`
 ### `V.all(g, def, cursor)`
+### `V.count(g, def, cursor)`
 ### `V.remove(g, id)`
 
 ## E
@@ -173,5 +174,6 @@ Defining an Edge requires the use of one of the following multiplicities:
 ### `E.define(label, multiplicity)`
 ### `E.get(g, from, def, direction, to)`
 ### `E.range(g, from, def, direction, cursor)`
+### `E.count(g, from, def, direction, cursor)`
 ### `E.set(g, from, def, direction, weight, to, attrs)`
 ### `E.remove(g, from, def, to)`

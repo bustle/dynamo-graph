@@ -9,7 +9,7 @@
  *      An implementation can be done in MongoDB, you know, if you're a "webscale" asshole
  */
 
-import type { $Id, $Weight, $Page, $Table, $TableRep } from '../Types'
+import type { $Id, $Weight, $PageInfo, $Table, $TableRep } from '../Types'
 import type { Vertex } from '../V'
 
 import DataLoader from 'dataloader'
@@ -70,8 +70,12 @@ export type Graph =
       ( table: $Table<K,V>
       , index: Index
       , params: any
-      , limit: ?number
-      ): Promise<$Page<V>>
+      ): Promise<Array<V>>
+  , count<K,V>
+      ( table: $Table<K,V>
+      , index: Index
+      , params: any
+      ): Promise<$PageInfo>
 
 /*
  * For performance, we also expose a DataLoader instance for vertices
@@ -229,25 +233,32 @@ export function define
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
-      , async query<K,V>(table: $Table<K,V>, IndexName, params, limit): Promise<$Page<V>> {
-
+      , async query<K,V>(table: $Table<K,V>, IndexName, params): Promise<Array<V>> {
           // TODO: iterate until all results are fetched
           const { TableName } = reps[table]
-
-          const { Items: items, Count: count }: any =
+          const { Items } =
             await client.queryAsync(
-              { TableName, IndexName, Limit: limit, ...params }
+              { TableName
+              , IndexName
+              , ...params
+              }
             )
+          return Items
+      }
 
-          if (!limit)
-            return { items, count }
-
-          const { Count: total } =
+      , async count<K,V>(table: $Table<K,V>, IndexName, params): Promise<$PageInfo> {
+          const { TableName } = reps[table]
+          const { Count: count } =
             await client.queryAsync(
-              { TableName, IndexName, Select: 'COUNT', ...params }
+              { TableName
+              , IndexName
+              , Select: 'COUNT'
+              , ...params
+              }
             )
-          return { items, count, total }
+          return { count }
         }
+
       , VertexLoader
       }
 

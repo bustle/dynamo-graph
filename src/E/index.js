@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { $Id, $Label, $Weight, $Cursor, $Page } from '../Types'
+import type { $Id, $Label, $Weight, $Cursor, $PageInfo } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
@@ -168,13 +168,13 @@ export async function set<a>
     const out = direction === OUT
 
     if (def.multiplicity[IN] === "ONE") {
-      const { items: [ inE ] }: $Page<Edge<a>> =
+      const [ inE ]: Array<Edge<a>> =
         await range(g, out ? to : from, def, IN)
       if (inE) await remove(g, inE.from, def, IN, inE.to)
     }
 
     if (def.multiplicity[OUT] === "ONE") {
-      const { items: [ outE ] }: $Page<Edge<a>> =
+      const [ outE ]: Array<Edge<a>> =
         await range(g, out ? from : to, def, OUT)
       if (outE) await remove(g, outE.from, def, OUT, outE.to)
     }
@@ -237,7 +237,7 @@ export async function range<a>
   , def: EdgeDef<a>
   , direction: Direction = OUT
   , cursor: ?$Cursor = {}
-  ): Promise<$Page<Edge<a>>> {
+  ): Promise<Array<Edge<a>>> {
 
     // type validations
     invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g.toString()}"`)
@@ -247,8 +247,42 @@ export async function range<a>
 
     const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
 
-    const { items, ...pageInfo }: $Page<SerializedEdge<a>> =
+    const edges: Array<SerializedEdge<a>> =
       await g.query
+        ( Table.EDGE
+        , INDEX_ADJACENCY
+        , { KeyConditions:
+            { hk:     { ComparisonOperator: 'EQ'
+                      , AttributeValueList: [ `${from}${direction}${def.label}` ]
+                      }
+            , ...maybe('weight', RangeCondition)
+            }
+          , Limit
+          , ScanIndexForward
+          }
+        )
+
+    return edges.map(deserialize)
+  }
+
+
+export async function count<a>
+  ( g: Graph
+  , from: $Id
+  , def: EdgeDef<a>
+  , direction: Direction = OUT
+  , cursor: ?$Cursor = {}
+  ): Promise<$PageInfo> {
+
+    // type validations
+    invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g.toString()}"`)
+    invariant(from, `E.range expected Id for 2nd argument, got "${from}"`)
+    invariant(def.__EDGE_DEF__, `E.range expected EdgeDef for 3rd argument, got "${def.toString()}"`)
+    invariant(isDirection(direction), `E.range expected Direction for 4th argument, got "${direction}"`)
+
+    const { RangeCondition, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
+
+    return g.count
         ( Table.EDGE
         , INDEX_ADJACENCY
         , { KeyConditions:
@@ -259,11 +293,9 @@ export async function range<a>
             }
           , ScanIndexForward
           }
-        , Limit
         )
-
-    return { items: items.map(deserialize), ...pageInfo }
   }
+
 
 /**
  *
