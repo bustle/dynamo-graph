@@ -187,12 +187,6 @@ export function define
       , [Table.SYSTEM]: SystemTable
       }
 
-    const VertexLoader: DataLoader<string, Vertex<any>> =
-      new DataLoader(async ids => {
-        const keys = ids.map(VertexTable.deserialize)
-        return batchGet(client, VertexTable, keys)
-      })
-
     const isProd: boolean = env === ENV_PRODUCTION
 
     const logStart = name => {
@@ -209,6 +203,16 @@ export function define
         console.timeEnd(`${name} (opId: ${opId})`)
       }
     }
+
+    const VertexLoader: DataLoader<string, Vertex<any>> =
+      new DataLoader(async ids => {
+        const keys = ids.map(VertexTable.deserialize)
+        const numKeys = isProd || keys.length
+        const log = logStart(`vertex loader (${numKeys} keys)`)
+        const result = await batchGet(client, VertexTable, keys)
+        logEnd(`vertex loader (${numKeys} keys)`, log)
+        return result
+      })
 
     // TODO: EdgeLoader (that accounts for direction)
 
