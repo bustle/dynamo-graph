@@ -89,7 +89,11 @@ export const  ONE_TO_ONE  : Multiplicity = { [IN]:  "ONE", [OUT]: "ONE"  }
 
 const defs : { [key: string]: { mstring: string, def: EdgeDef<any> } } = {}
 
-export function define<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): EdgeDef<a> {
+// Webpack treats the word `define` as a magical global due to the way AMD modules work
+// and confuses the exports of babel for being "indirect usage"
+// TODO: come up with a better name or let this be an es6 module
+export { define$ as define }
+function define$<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): EdgeDef<a> {
 
   invariant
     ( label

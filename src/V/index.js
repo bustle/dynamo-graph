@@ -73,7 +73,12 @@ type VertexDef<a> =
 
 const defs: { [key: string]: VertexDef<mixed> } = {}
 
-export function define<a>(label: $Label<Vertex<a>>): VertexDef<a> {
+// Webpack treats the word `define` as a magical global due to the way AMD modules work
+// and confuses the exports of babel for being "indirect usage"
+// TODO: come up with a better name or let this be an es6 module
+
+export { define$ as define }
+export function define$<a>(label: $Label<Vertex<a>>): VertexDef<a> {
 
   invariant(label, 'Label must be non-empty')
 

@@ -153,7 +153,11 @@ const graphs :
     }
   } = {}
 
-export function define
+// Webpack treats the word `define` as a magical global due to the way AMD modules work
+// and confuses the exports of babel for being "indirect usage"
+// TODO: come up with a better name or let this be an es6 module
+export { define$ as define }
+function define$
   ( name: string
   , { env    = "development"
     , region = "us-east-1"
