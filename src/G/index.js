@@ -194,30 +194,41 @@ function define$
 
     const isProd: boolean = env === ENV_PRODUCTION
 
-    const logStart = name => {
-      if (!isProd) {
-        const opId = Math.floor(Math.random() * 99999) + 1
-        console.log(`Dispatching ${name} (opId: ${opId})`)
-        console.time(`${name} (opId: ${opId})`)
-        return opId
-      }
-    }
-
-    const logEnd = (name, opId) => {
-      if (!isProd && opId) {
-        console.timeEnd(`${name} (opId: ${opId})`)
-      }
-    }
+    const wrapLog = isProd
+        ? (name, job) => job
+        : async (name, job) => {
+            const opId = Math.floor(Math.random() * 99999) + 1
+            console.log(`Dispatching ${name} (opId: ${opId})`)
+            console.time(`${name} (opId: ${opId})`)
+            const result = await job
+            console.timeEnd(`${name} (opId: ${opId})`)
+            return result
+          }
 
     const VertexLoader: DataLoader<string, Vertex<any>> =
       new DataLoader(async ids => {
         const keys = ids.map(VertexTable.deserialize)
         const numKeys = isProd || keys.length
-        const log = logStart(`vertex loader (${numKeys} keys)`)
-        const result = await batchGet(client, VertexTable, keys)
-        logEnd(`vertex loader (${numKeys} keys)`, log)
+        const result = await wrapLog
+          ( `vertex loader (${numKeys} keys)`
+          , batchGet(client, VertexTable, keys)
+          )
         return result
       })
+
+    const QueryLoader: DataLoader<any, any> =
+      new DataLoader
+        ( async queries => {
+            const result = await wrapLog
+              ( `batch of ${queries.length} queries`
+              , Promise.all(
+                  queries.map(q => client.queryAsync(q))
+                )
+              )
+            return result
+          }
+        , { cache: false }
+        )
 
     // TODO: EdgeLoader (that accounts for direction)
 
@@ -248,21 +259,26 @@ function define$
         }
 
       , async batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>> {
-          const log = logStart(`batch get \`${table}\``)
-          const result = await batchGet(client, reps[table], keys)
-          logEnd(`batch get \`${table}\``, log)
+          const result = await wrapLog
+            ( `batch get \`${table}\``
+            , batchGet(client, reps[table], keys)
+            )
           return result
         }
+
       , async batchPut<K,V>(table: $Table<K,V>, items: Array<V>): Promise<void> {
-          const log = logStart(`batch put \`${table}\``)
-          const result = await batchPut(client, reps[table], items)
-          logEnd(`batch put \`${table}\``)
+          const result = await wrapLog
+            ( `batch put \`${table}\``
+            , batchPut(client, reps[table], items)
+            )
           return result
         }
+
       , async batchDel<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<void> {
-          const log = logStart(`batch del \`${table}\``)
-          const result = await batchDel(client, reps[table], keys)
-          logEnd(`batch del \`${table}\``, log)
+          const result = await wrapLog
+            ( `batch del \`${table}\``
+            , batchDel(client, reps[table], keys)
+            )
           return result
         }
 
@@ -272,16 +288,13 @@ function define$
           // TODO: iterate until all results are fetched
           const { TableName } = reps[table]
 
-          const log = logStart(`query \`${table}:${IndexName}\``)
           const { Items } =
-            await client.queryAsync(
+            await QueryLoader.load(
               { TableName
               , IndexName
               , ...params
               }
             )
-
-          logEnd(`query \`${table}:${IndexName}\``, log)
 
           return Items
       }
@@ -289,7 +302,7 @@ function define$
       , async count<K,V>(table: $Table<K,V>, IndexName, params): Promise<$PageInfo> {
           const { TableName } = reps[table]
           const { Count: count } =
-            await client.queryAsync(
+            await QueryLoader.load(
               { TableName
               , IndexName
               , Select: 'COUNT'
