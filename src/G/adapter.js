@@ -12,6 +12,7 @@ AWSConfig.setPromisesDependency(Promise)
 
 // TODO: properly document the expected input/output
 declare class DocumentClientAsync {
+  putAsync<K,V>(params: K): Promise<V>;
   batchGetAsync<K,V>(params: K): Promise<V>;
   batchWriteAsync<K,V>(params: K): Promise<V>;
   updateAsync<K,V>(params: K): Promise<V>;

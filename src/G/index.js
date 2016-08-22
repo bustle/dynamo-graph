@@ -57,6 +57,11 @@ export type Graph =
   , id        : () => Promise<$Id>     // generate a fresh id
   , weight    : () => Promise<$Weight> // generate a fresh weight
 
+  // create a counter
+  , putCounter  : (key: string, value: number) => Promise<number>
+  // increment a created counter
+  , incrCounter : (key: string) => Promise<$Weight>
+
 /*
  * The graph exposes only batch read, query, and mutation operations,
  * leaving the V and E modules responsible for processing the data
@@ -252,6 +257,27 @@ function define$
           const { Attributes } = await client.updateAsync(
             { TableName: reps[Table.SYSTEM].TableName
             , Key: { key: 'weight' }
+            , ...incrField('value')
+            }
+          )
+          return Attributes.value
+        }
+
+      , async putCounter(key: string, value: number) {
+          const counter = await client.putAsync(
+            { TableName: reps[Table.SYSTEM].TableName
+            , Item: { key: `counter:${key}`
+                    , value
+                    }
+            }
+          )
+          return counter.value
+        }
+
+      , async incrCounter(key: string) {
+          const { Attributes } = await client.updateAsync(
+            { TableName: reps[Table.SYSTEM].TableName
+            , Key: { key: `counter:${key}` }
             , ...incrField('value')
             }
           )

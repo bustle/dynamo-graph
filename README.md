@@ -109,6 +109,8 @@ type Graph =
   , region: "us-east-1" | "us-west-1" | ... | "local"
   , id: () => Promise<Id>
   , weight: () => Promise<Weight>
+  , putCounter: (key: string, value: number) => Promise<number>
+  , incrCounter: (key: string, value: number) => Promise<number></number>
   }
 ```
 
