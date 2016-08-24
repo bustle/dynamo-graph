@@ -21,7 +21,7 @@ export function parse(cursor: ?$Cursor = {}): ParsedCursor {
         , before
         } = (cursor : any)
 
-  const reverse: boolean = last > 0 || before !== undefined
+  const reverse: boolean = last > 0 || (before !== undefined && before !== null)
 
   return {
       RangeCondition:
