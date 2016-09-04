@@ -169,8 +169,8 @@ export class TableAdapter<K,V> {
 
     const log = this.startLog(`batch put \`${this.table.TableName}\` with ${items.length} items`)
 
-    // chunk into groups of 100
-    const chunks = chunk(items, 100)
+    // chunk into groups of 25
+    const chunks = chunk(items, 25)
 
     // execute each mutation chunk in serial
     for (let chunk of chunks) {
@@ -192,8 +192,8 @@ export class TableAdapter<K,V> {
 
     const log = this.startLog(`batch del \`${this.table.TableName}\` with ${keys.length} keys`)
 
-    // chunk into groups of 100
-    const chunks = chunk(keys, 100)
+    // chunk into groups of 25
+    const chunks = chunk(keys, 25)
 
     // execute each mutation batch in serial
     for (let chunk of chunks) {
