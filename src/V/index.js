@@ -293,18 +293,10 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
         }
       )
 
-  // map for deduping
-  const outMap = {}
-  outE.forEach(({ hk_out, to }) => {
-    outMap[`${hk_out}~$~${to}`] = true
-  })
-
   const edgeKeys: Array<{ hk_out: string, to: string }> =
     flatten(
       [ outE.map(({ hk_out, to }) => ({ hk_out, to }))
-      , inE
-          .filter(({ hk_out, to }) => !outMap[`${hk_out}~$~${to}`])
-          .map(({ hk_out, to }) => ({ hk_out, to }))
+      , inE.map(({ hk_out, to }) => ({ hk_out, to }))
       ]
     )
 

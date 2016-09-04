@@ -118,20 +118,6 @@ export class TableAdapter<K,V> {
 
   // implementation of batching
 
-  startLog(name: string): ?string {
-    if (!this.omitLogs) {
-      const op = `${name} (opId: ${Math.floor(Math.random() * 99999) + 1})`
-      console.log(`Dispatching ${op}`)
-      console.time(op)
-      return op
-    }
-  }
-
-  endLog(op: ?string): void {
-    if (!this.omitLogs && op) {
-      console.timeEnd(op)
-    }
-  }
 
   async batchGet(keys: Array<K>): Promise<Array<V>> {
 
@@ -165,8 +151,12 @@ export class TableAdapter<K,V> {
 
   }
 
-  async batchPut(items: Array<V>): Promise<Array<string>> {
+  async batchPut(rawItems: Array<V>): Promise<Array<string>> {
 
+    // deduplicate items, preferring later items
+    const items: Array<V> = this.dedupe(rawItems)
+
+    // deduplicate items, preferring later items
     const log = this.startLog(`batch put \`${this.table.TableName}\` with ${items.length} items`)
 
     // chunk into groups of 25
@@ -184,11 +174,14 @@ export class TableAdapter<K,V> {
 
     this.endLog(log)
 
-    return items.map(() => "OK")
+    return rawItems.map(() => "OK")
 
   }
 
-  async batchDel(keys: Array<K>): Promise<Array<string>> {
+  async batchDel(rawKeys: Array<K>): Promise<Array<string>> {
+
+    // deduplicate items, preferring later items
+    const keys: Array<K> = this.dedupe(rawKeys)
 
     const log = this.startLog(`batch del \`${this.table.TableName}\` with ${keys.length} keys`)
 
@@ -207,8 +200,39 @@ export class TableAdapter<K,V> {
 
     this.endLog(log)
 
-    return keys.map(() => "OK")
+    return rawKeys.map(() => "OK")
 
   }
 
+  // helpers
+
+  startLog(name: string): ?string {
+    if (!this.omitLogs) {
+      const op = `${name} (opId: ${Math.floor(Math.random() * 99999) + 1})`
+      console.log(`Dispatching ${op}`)
+      console.time(op)
+      return op
+    }
+  }
+
+  endLog(op: ?string): void {
+    if (!this.omitLogs && op) {
+      console.timeEnd(op)
+    }
+  }
+
+  dedupe<T: K|V>(objs: Array<T>): Array<T> {
+    const invIndex: { [key: string]: number } = {}
+    const deduped: Array<T> = []
+    objs.forEach(obj => {
+      const ser: string = this.table.serialize(obj)
+      if (invIndex[ser] || invIndex[ser] === 0) {
+        deduped[invIndex[ser]] = obj
+      } else {
+        invIndex[ser] = deduped.length
+        deduped.push(obj)
+      }
+    })
+    return deduped
+  }
 }
