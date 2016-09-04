@@ -5,13 +5,13 @@ export function assign<K, V>(obj: { [key: K]: V }, key: K, val: V): { [key: K]: 
   return obj
 }
 
-export function invariant(condition: mixed, message: string) : void {
+export function invariant(condition: mixed, message: string | () => string) : void {
   if (!condition)
-    throw new Error(message)
+    throw new Error(typeof message === 'function' ? message() : message)
 }
 
 export function validateArg<a>(name: string, argument: number, fn: (val: a) => mixed, x: a): void {
-  invariant(fn(x), `${name} at argument ${argument}, expected "${fn.name}" got ${JSON.stringify(x) || 'undefined'}`)
+  invariant(fn(x), () => `${name} at argument ${argument}, expected "${fn.name}" got ${x && x.toString ? x.toString() : '[undefined]'}`)
 }
 
 export function maybe<a>(key: string, value: ?a): { [key: string]: a } {

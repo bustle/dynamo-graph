@@ -10,14 +10,17 @@
  */
 
 import type { $Id, $Weight, $PageInfo, $Table, $TableRep } from '../Types'
+
+import type { VertexKey, EdgeKey } from '../Types/Table'
 import type { Vertex } from '../V'
+import type { SerializedEdge } from '../E'
 
 import DataLoader from 'dataloader'
 
 import { assign, invariant, chunk, flatten } from '../utils'
 import { Id, Table } from '../Types'
 
-import { documentClient, batchGet, batchPut, batchDel } from './adapter'
+import { documentClient, TableAdapter } from './adapter'
 
 /**
  * G
@@ -66,30 +69,20 @@ export type Graph =
   // increment a created counter
   , incrCounter : (key: string) => Promise<$Weight>
 
-/*
- * The graph exposes only batch read, query, and mutation operations,
- * leaving the V and E modules responsible for processing the data
- */
-
-  , batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>>
-  , batchPut<K,V>(table: $Table<K,V>, items: Array<any>): Promise<void>
-  , batchDel<K,V>(table: $Table<K,V>, keys: Array<any>): Promise<void>
+  , V: TableAdapter<VertexKey,Vertex>
+  , E: TableAdapter<EdgeKey,SerializedEdge>
 
   , query<K,V>
       ( table: $Table<K,V>
       , index: Index
       , params: any
       ): Promise<Array<V>>
+
   , count<K,V>
       ( table: $Table<K,V>
       , index: Index
       , params: any
       ): Promise<$PageInfo>
-
-/*
- * For performance, we also expose a DataLoader instance for vertices
- */
-  , VertexLoader: DataLoader<string,Vertex<any>>
   }
 
 /**
@@ -203,39 +196,21 @@ function define$
 
     const isProd: boolean = env === ENV_PRODUCTION
 
-    const wrapLog = isProd
-        ? (name, job) => job
-        : async (name, job) => {
-            const opId = Math.floor(Math.random() * 99999) + 1
-            console.log(`Dispatching ${name} (opId: ${opId})`)
-            console.time(`${name} (opId: ${opId})`)
-            const result = await job
-            console.timeEnd(`${name} (opId: ${opId})`)
-            return result
-          }
-
-    const VertexLoader: DataLoader<string, Vertex<any>> =
-      new DataLoader(async ids => {
-        const keys = ids.map(VertexTable.deserialize)
-        const numKeys = isProd || keys.length
-        const result = await wrapLog
-          ( `vertex loader (${numKeys} keys)`
-          , batchGet(client, VertexTable, keys)
-          )
-        return result
-      })
-
-    // TODO: batching execution of mutations
-
     const QueryLoader: DataLoader<any, any> =
       new DataLoader
         ( async queries => {
-            const result = await wrapLog
-              ( `batch of ${queries.length} queries`
-              , Promise.all(
-                  queries.map(q => client.queryAsync(q))
-                )
-              )
+            let op
+            if (!isProd) {
+              op = `batch of ${queries.length} queries (opId: ${Math.floor(Math.random() * 99999) + 1})`
+              console.log(`Dispatching ${op}`)
+              console.time(op)
+            }
+            const result = await Promise.all(
+              queries.map(q => client.queryAsync(q))
+            )
+            if (!isProd) {
+              console.timeEnd(op)
+            }
             return result
           }
         , { cache: false }
@@ -290,29 +265,8 @@ function define$
           return Attributes.value
         }
 
-      , async batchGet<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<Array<V>> {
-          const result = await wrapLog
-            ( `batch get \`${table}\``
-            , batchGet(client, reps[table], keys)
-            )
-          return result
-        }
-
-      , async batchPut<K,V>(table: $Table<K,V>, items: Array<V>): Promise<void> {
-          const result = await wrapLog
-            ( `batch put \`${table}\``
-            , batchPut(client, reps[table], items)
-            )
-          return result
-        }
-
-      , async batchDel<K,V>(table: $Table<K,V>, keys: Array<K>): Promise<void> {
-          const result = await wrapLog
-            ( `batch del \`${table}\``
-            , batchDel(client, reps[table], keys)
-            )
-          return result
-        }
+      , V: new TableAdapter(client, reps[Table.VERTEX])
+      , E: new TableAdapter(client, reps[Table.EDGE])
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
@@ -343,8 +297,6 @@ function define$
             )
           return { count }
         }
-
-      , VertexLoader
       }
 
     graphs[name] = { graph, env, region }

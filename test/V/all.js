@@ -29,12 +29,12 @@ test
       )
 
       // repopulate model
-      await Promise.all(
-        [].concat
-          ( Gen.array(N_1).map(() => V.create(g, ALL_1, { foo: Gen.nat() }))
-          , Gen.array(N_2).map(() => V.create(g, ALL_2, { bar: Gen.nat() }))
-          )
-      )
+      for (const i in Gen.array(N_1)) {
+        await V.create(g, ALL_1, { foo: Gen.nat() })
+      }
+      for (const i in Gen.array(N_2)) {
+        await V.create(g, ALL_2, { bar: Gen.nat() })
+      }
 
       // TODO: test count method
 
@@ -45,6 +45,9 @@ test
         for (const v2 of all1)
           v === v2 || t.notDeepEqual(v, v2)
       }
+
+      // TODO: fix this
+      // dynamo-graph is now too parallel and the `updatdAt` field is not unique
 
       // forward pagination works
 

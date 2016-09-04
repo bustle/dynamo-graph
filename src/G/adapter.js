@@ -6,6 +6,8 @@ import type { $TableRep } from '../Types'
 import { config as AWSConfig, DynamoDB, Endpoint } from 'aws-sdk'
 import Promise from 'bluebird'
 import https from 'https'
+
+import DataLoader from 'dataloader'
 import { maybe, chunk, flatten } from '../utils'
 
 AWSConfig.setPromisesDependency(Promise)
@@ -38,22 +40,114 @@ export const documentClient = (region: Region): DocumentClientAsync =>
       )
   )
 
-// TODO: consider cross-table batching? Probably not worth it
-export async function batchGet<K, V>
-  ( client: DocumentClientAsync
-  , { TableName, serialize }: $TableRep<K, V>
-  , keys: Array<K>
-  ): Promise<Array<V>> {
+
+export class TableAdapter<K,V> {
+
+  client: DocumentClientAsync;
+  table: $TableRep<K,V>;
+  omitLogs: boolean;
+  getLoader: DataLoader<string,V>;
+  putLoader: DataLoader<V,string>;
+  delLoader: DataLoader<K,string>;
+
+
+  constructor(client: DocumentClientAsync, table: $TableRep<K,V>, omitLogs: boolean = false) {
+    this.client = client
+    this.table = table
+    this.omitLogs = omitLogs
+
+    this.getLoader = new DataLoader
+      ( (keys: Array<string>): Promise<Array<V>> =>
+          this.batchGet(keys.map(table.deserialize))
+      )
+
+    this.putLoader = new DataLoader
+      ( (items: Array<V>): Promise<Array<string>> =>
+          this.batchPut(items)
+      , { cache: false }
+      )
+
+    this.delLoader = new DataLoader
+      ( (keys: Array<K>): Promise<Array<string>> =>
+          this.batchDel(keys)
+      , { cache: false }
+      )
+  }
+
+  get(key: K): Promise<?V> {
+    return this.getLoader.load(this.table.serialize(key))
+  }
+
+  getMany(keys: Array<K>): Promise<Array<?V>> {
+    return Promise.all(keys.map(k => this.get(k)))
+  }
+
+  async put(item: V): Promise<V> {
+    await this.putLoader.load(item)
+    this.prime(item)
+    return item
+  }
+
+  putMany(items: Array<V>): Promise<Array<V>> {
+    return Promise.all(items.map(i => this.put(i)))
+  }
+
+  async del(key: K): Promise<K> {
+    await this.delLoader.load(key)
+    this.getLoader
+        .clear(this.table.serialize(key))
+    return key
+  }
+
+  delMany(keys: Array<K>): Promise<Array<K>> {
+    return Promise.all(keys.map(k => this.del(k)))
+  }
+
+  prime(item: V): V {
+    this.getLoader
+        .clear(this.table.serialize(item))
+        .prime(this.table.serialize(item), item)
+    return item
+  }
+
+  primeMany(items: Array<V>): Array<V> {
+    return items.map(item => this.prime(item))
+  }
+
+  // PRIVATE:
+
+  // implementation of batching
+
+  startLog(name: string): ?string {
+    if (!this.omitLogs) {
+      const op = `${name} (opId: ${Math.floor(Math.random() * 99999) + 1})`
+      console.log(`Dispatching ${op}`)
+      console.time(op)
+      return op
+    }
+  }
+
+  endLog(op: ?string): void {
+    if (!this.omitLogs && op) {
+      console.timeEnd(op)
+    }
+  }
+
+  async batchGet(keys: Array<K>): Promise<Array<V>> {
+
+    const log = this.startLog(`batch get \`${this.table.TableName}\` with ${keys.length} keys`)
 
     // batch reads into groups of 100
     const reads : Array<Array<V>> = await Promise.all(
       chunk(keys, 100).map(async chunk => {
-        const { Responses } = await client.batchGetAsync(
-          { RequestItems: { [TableName]: { Keys: chunk } } }
+        const { Responses } = await this.client.batchGetAsync(
+          { RequestItems: { [this.table.TableName]: { Keys: chunk } } }
         )
-        return Responses[TableName]
+        return Responses[this.table.TableName]
       })
     )
+
+    this.endLog(log)
 
     // flatten results into a normalized map
     // dynamo `BatchGetItem`s do not guarantee order
@@ -61,44 +155,60 @@ export async function batchGet<K, V>
     const resultMap : { [key: string]: V } = {}
 
     results.forEach(
-      v => resultMap[serialize(v)] = v
+      v => resultMap[this.table.serialize(v)] = v
     )
 
+    // console.log('yes hello:', resultMap)
+
     // map keys to their results
-    return keys.map(key => resultMap[serialize(key)])
+    return keys.map(key => resultMap[this.table.serialize(key)])
 
   }
 
-export async function batchPut<K, V>
-  ( client: DocumentClientAsync
-  , { TableName, serialize }: $TableRep<K, V>
-  , items: Array<V>
-  ): Promise<void> {
+  async batchPut(items: Array<V>): Promise<Array<string>> {
+
+    const log = this.startLog(`batch put \`${this.table.TableName}\` with ${items.length} items`)
 
     // chunk into groups of 100
     const chunks = chunk(items, 100)
 
     // execute each mutation chunk in serial
     for (let chunk of chunks) {
-      const requests = chunk.map(Item => ({ PutRequest: { Item } }))
-      await client.batchWriteAsync({ RequestItems: { [TableName]: requests } })
+      const requests = chunk.map(
+        Item => ({ PutRequest: { Item } })
+      )
+      await this.client.batchWriteAsync(
+        { RequestItems: { [this.table.TableName]: requests } }
+      )
     }
+
+    this.endLog(log)
+
+    return items.map(() => "OK")
 
   }
 
-export async function batchDel<K, V>
-  ( client: DocumentClientAsync
-  , { TableName }: $TableRep<K, V>
-  , keys: Array<K>
-  ): Promise<void> {
+  async batchDel(keys: Array<K>): Promise<Array<string>> {
+
+    const log = this.startLog(`batch del \`${this.table.TableName}\` with ${keys.length} keys`)
 
     // chunk into groups of 100
     const chunks = chunk(keys, 100)
 
     // execute each mutation batch in serial
     for (let chunk of chunks) {
-      const requests = chunk.map(Key => ({ DeleteRequest: { Key } }))
-      await client.batchWriteAsync({ RequestItems: { [TableName]: requests } })
+      const requests = chunk.map(
+        Key => ({ DeleteRequest: { Key } })
+      )
+      await this.client.batchWriteAsync(
+        { RequestItems: { [this.table.TableName]: requests } }
+      )
     }
 
+    this.endLog(log)
+
+    return keys.map(() => "OK")
+
   }
+
+}

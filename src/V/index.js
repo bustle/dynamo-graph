@@ -118,7 +118,7 @@ export async function putByKey<a>(g: Graph, def: VertexDef<a>, key: $Key<a>, att
   return putVertex(g, def, id, attrs, key)
 }
 
-async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a, key: ?$Key<a>): Promise<Vertex<a>> {
+function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a, key: ?$Key<a>): Promise<Vertex<a>> {
 
   const v: Vertex<a> =
     { id, label, attrs        // copy attributes
@@ -126,12 +126,8 @@ async function putVertex<a>(g: Graph, { label }: VertexDef<a>, id: $Id, attrs: a
     , ...(key ? { key } : {}) // avoid undefined fields
     }
 
-  await g.batchPut(Table.VERTEX, [v])
+  return g.V.put(v)
 
-  // prime cache
-  g.VertexLoader.clear(id).prime(id, v)
-
-  return v
 }
 
 /**
@@ -147,7 +143,7 @@ export async function get(g: Graph, id: $Id): Promise<?Vertex<mixed>> {
   invariant(g.__GRAPH__, `V.get expected Graph for 1st argument, got "${g.toString()}"`)
   invariant(id,          `V.get expected Id for 2nd argument, got "${id}"`)
 
-  return g.VertexLoader.load(id)
+  return g.V.get({ id })
 }
 
 // V.getMany :: Graph -> [ Id ] -> [ Vertex (∃ a) ? ]
@@ -156,7 +152,7 @@ export async function getMany(g: Graph, ids: Array<$Id>): Promise<Array<?Vertex<
   invariant(g.__GRAPH__,        `V.getMany expected Graph for 1st argument, got "${g.toString()}"`)
   invariant(Array.isArray(ids), `V.getMany expected [Id] for 2nd argument, got "${ids}"`)
 
-  return g.VertexLoader.loadMany(ids)
+  return g.V.getMany(ids.map(id => ({ id })))
 }
 
 /**
@@ -191,7 +187,8 @@ export async function getByKey<a>
           }
         )
 
-    if (v) g.VertexLoader.prime(v.id, v)
+    // TODO: expose better priming
+    if (v) g.V.prime(v)
 
     return v
 
@@ -217,7 +214,7 @@ export async function all<a>
 
     const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
 
-    return g.query
+    const vs: Array<Vertex> = await g.query
       ( Table.VERTEX
       , INDEX_VERTEX_ALL
       , { KeyConditions:
@@ -230,6 +227,10 @@ export async function all<a>
         , ScanIndexForward
         }
       )
+
+    g.V.primeMany(vs)
+
+    return vs
 
   }
 
@@ -307,11 +308,8 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
       ]
     )
 
-  await g.batchDel(Table.EDGE, edgeKeys)
-  await g.batchDel(Table.VERTEX, [{ id }])
-
-  // sync loader
-  g.VertexLoader.clear(id)
+  await g.E.delMany(edgeKeys)
+  await g.V.del({ id })
 
   return v
 }

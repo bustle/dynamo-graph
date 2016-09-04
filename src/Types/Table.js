@@ -4,9 +4,9 @@ import type { $Table, $TableRep } from './index'
 import type { Vertex } from '../V'
 import type { SerializedEdge } from '../E'
 
-type VertexKey = { id: string }
-type EdgeKey = { hk_out: string, to: string }
-type SystemKey = { key: string }
+export type VertexKey = { id: string }
+export type EdgeKey = { hk_out: string, to: string }
+export type SystemKey = { key: string }
 
 export const VERTEX : $Table<VertexKey, Vertex<mixed>>       = "vertex"
 export const EDGE   : $Table<EdgeKey, SerializedEdge<mixed>> = "edge"

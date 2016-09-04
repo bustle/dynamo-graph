@@ -166,11 +166,7 @@ export async function set<a>
       if (outE) await remove(g, outE.from, def, OUT, outE.to)
     }
 
-    await g.batchPut
-      ( Table.EDGE
-      , [ serialize(edge)
-        ]
-      )
+    await g.E.put(serialize(edge))
 
     return edge
   }
@@ -197,13 +193,12 @@ export async function get<a>
     validateArg('E.get', 4, isDirection, direction)
     validateArg('E.get', 5, isID, to)
 
-    const [ edge ]: Array<?SerializedEdge<a>> = await g.batchGet
-      ( Table.EDGE
-      , [ direction === OUT
+    const edge: ?SerializedEdge<a> =
+      await g.E.get
+        ( direction === OUT
         ? { hk_out: `${def.label}>${from}`, to }
         : { hk_out: `${def.label}>${to}`, to: from }
-        ]
-      )
+        )
 
     return edge ? deserialize(edge, direction) : null
   }
@@ -251,7 +246,7 @@ export async function range<a>
           }
         )
 
-      return edges.map(e => deserialize(e, direction))
+    return edges.map(e => deserialize(e, direction))
   }
 
 
@@ -308,15 +303,11 @@ export async function remove<a>
     // but we should do them again here so the error messages match
     const e = await get(g, from, def, direction, to)
 
-    if (e) {
-      await g.batchDel
-        ( Table.EDGE
-        , [ direction === OUT
-          ? { hk_out: `${def.label}>${from}`, to }
-          : { hk_out: `${def.label}>${to}`, to: from }
-          ]
-        )
-    }
+    const key = direction === OUT
+      ? { hk_out: `${def.label}>${from}`, to }
+      : { hk_out: `${def.label}>${to}`, to: from }
+
+    if (e) await g.E.del(key)
 
     return e
 
