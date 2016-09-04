@@ -4,9 +4,9 @@ import type { $Id, $Label, $Weight, $Cursor, $PageInfo } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
-import { INDEX_ADJACENCY } from '../G'
+import { INDEX_EDGE_OUT, INDEX_EDGE_IN } from '../G'
 
-import { invariant, maybe } from '../utils'
+import { invariant, validateArg, maybe } from '../utils'
 import { Table, Cursor } from '../Types'
 
 /**
@@ -37,20 +37,6 @@ export type Edge<a> =
  */
   , updatedAt : number
   }
-
-/**
- * Although edges are directed, for efficient querying, we always store both directions
- */
-
-function invert<a>(edge: Edge<a>): Edge<a> {
-  const direction : Direction = edge.direction === ">" ? "<" : ">"
-  return {
-    ...edge
-    , from: edge.to
-    , direction
-    , to: edge.from
-  }
-}
 
 /**
  *
@@ -95,14 +81,8 @@ const defs : { [key: string]: { mstring: string, def: EdgeDef<any> } } = {}
 export { define$ as define }
 function define$<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): EdgeDef<a> {
 
-  invariant
-    ( label
-    , 'Label must be non-empty'
-    )
-  invariant
-    ( isMultiplicity(multiplicity)
-    , `Edge "${label}" must have a valid multiplicity`
-    )
+  invariant(label, 'Label must be non-empty')
+  validateArg('E.define', 2, isMultiplicity, multiplicity)
 
   const mstring = `${multiplicity[IN]}2${multiplicity[OUT]}`
 
@@ -116,10 +96,13 @@ function define$<a>(label: $Label<Edge<a>>, multiplicity: Multiplicity): EdgeDef
     return cached.def
   }
 
-  const def = { __EDGE_DEF__: true, label, multiplicity }
+  const def =
+    { __EDGE_DEF__: true
+    , label
+    , multiplicity
+    }
 
   defs[label] = { mstring, def }
-
 
   return def
 
@@ -149,12 +132,12 @@ export async function set<a>
   , attrs: a
   ): Promise<Edge<a>> {
 
-    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g.toString()}"`)
-    invariant(from, `E.get expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def.toString()}"`)
-    invariant(isDirection(direction), `E.get expected Direction for 4th argument, got "${direction}"`)
-    // TODO: validate weight
-    invariant(to, `E.get expected Id for 6th argument, got "${to}"`)
+    validateArg('E.set', 1, isGraph, g)
+    validateArg('E.set', 2, isID, from)
+    validateArg('E.set', 3, isEdgeDef, def)
+    validateArg('E.set', 4, isDirection, direction)
+    validateArg('E.set', 5, isWeight, weight)
+    validateArg('E.set', 6, isID, to)
 
     if (weight === GENERATE)
       weight = await g.weight()
@@ -186,7 +169,6 @@ export async function set<a>
     await g.batchPut
       ( Table.EDGE
       , [ serialize(edge)
-        , serialize(invert(edge))
         ]
       )
 
@@ -209,21 +191,21 @@ export async function get<a>
   , to: $Id
   ): Promise<?Edge<a>> {
 
-    // type validations
-    invariant(g.__GRAPH__, `E.get expected Graph for 1st argument, got "${g.toString()}"`)
-    invariant(from, `E.get expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.get expected EdgeDef for 3rd argument, got "${def.toString()}"`)
-    invariant(isDirection(direction), `E.get expected Direction for 4th argument, got "${direction}"`)
-    invariant(to, `E.get expected Id for 5th argument, got "${to}"`)
+    validateArg('E.get', 1, isGraph, g)
+    validateArg('E.get', 2, isID, from)
+    validateArg('E.get', 3, isEdgeDef, def)
+    validateArg('E.get', 4, isDirection, direction)
+    validateArg('E.get', 5, isID, to)
 
     const [ edge ]: Array<?SerializedEdge<a>> = await g.batchGet
       ( Table.EDGE
-      , [{ hk: `${from}${direction}${def.label}`, to }]
+      , [ direction === OUT
+        ? { hk_out: `${def.label}>${from}`, to }
+        : { hk_out: `${def.label}>${to}`, to: from }
+        ]
       )
 
-    return edge
-      ? deserialize(edge)
-      : null
+    return edge ? deserialize(edge, direction) : null
   }
 
 /**
@@ -243,22 +225,25 @@ export async function range<a>
   , cursor: ?$Cursor = {}
   ): Promise<Array<Edge<a>>> {
 
-    // type validations
-    invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g.toString()}"`)
-    invariant(from, `E.range expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.range expected EdgeDef for 3rd argument, got "${def.toString()}"`)
-    invariant(isDirection(direction), `E.range expected Direction for 4th argument, got "${direction}"`)
+    validateArg('E.get', 1, isGraph, g)
+    validateArg('E.get', 2, isID, from)
+    validateArg('E.get', 3, isEdgeDef, def)
+    validateArg('E.get', 4, isDirection, direction)
 
-    const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
+    const { RangeCondition
+          , Limit
+          , ScanIndexForward
+          }: ParsedCursor = Cursor.parse(cursor)
 
     const edges: Array<SerializedEdge<a>> =
       await g.query
         ( Table.EDGE
-        , INDEX_ADJACENCY
+        , direction === OUT ? INDEX_EDGE_OUT : INDEX_EDGE_IN
         , { KeyConditions:
-            { hk:     { ComparisonOperator: 'EQ'
-                      , AttributeValueList: [ `${from}${direction}${def.label}` ]
-                      }
+            { [direction === OUT ? 'hk_out' : 'hk_in']:
+                { ComparisonOperator: 'EQ'
+                , AttributeValueList: [ `${def.label}${direction}${from}` ]
+                }
             , ...maybe('weight', RangeCondition)
             }
           , Limit
@@ -266,7 +251,7 @@ export async function range<a>
           }
         )
 
-    return edges.map(deserialize)
+      return edges.map(e => deserialize(e, direction))
   }
 
 
@@ -278,26 +263,28 @@ export async function count<a>
   , cursor: ?$Cursor = {}
   ): Promise<$PageInfo> {
 
-    // type validations
-    invariant(g.__GRAPH__, `E.range expected Graph for 1st argument, got "${g.toString()}"`)
-    invariant(from, `E.range expected Id for 2nd argument, got "${from}"`)
-    invariant(def.__EDGE_DEF__, `E.range expected EdgeDef for 3rd argument, got "${def.toString()}"`)
-    invariant(isDirection(direction), `E.range expected Direction for 4th argument, got "${direction}"`)
+    validateArg('E.get', 1, isGraph, g)
+    validateArg('E.get', 2, isID, from)
+    validateArg('E.get', 3, isEdgeDef, def)
+    validateArg('E.get', 4, isDirection, direction)
 
-    const { RangeCondition, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
+    const { RangeCondition
+          , ScanIndexForward
+          }: ParsedCursor = Cursor.parse(cursor)
 
     return g.count
-        ( Table.EDGE
-        , INDEX_ADJACENCY
-        , { KeyConditions:
-            { hk:     { ComparisonOperator: 'EQ'
-                      , AttributeValueList: [ `${from}${direction}${def.label}` ]
-                      }
-            , ...maybe('weight', RangeCondition)
-            }
-          , ScanIndexForward
+      ( Table.EDGE
+      , direction === OUT ? INDEX_EDGE_OUT : INDEX_EDGE_IN
+      , { KeyConditions:
+          { [direction === OUT ? 'hk_out' : 'hk_in']:
+              { ComparisonOperator: 'EQ'
+              , AttributeValueList: [ `${def.label}${direction}${from}` ]
+              }
+          , ...maybe('weight', RangeCondition)
           }
-        )
+        , ScanIndexForward
+        }
+      )
   }
 
 
@@ -315,56 +302,63 @@ export async function remove<a>
   , def: EdgeDef<a>
   , direction: Direction = OUT
   , to: $Id
-  ): Promise<Edge<a>> {
+  ): Promise<?Edge<a>> {
 
     // effectively performs type validations
     // but we should do them again here so the error messages match
     const e = await get(g, from, def, direction, to)
 
-    invariant(e, 'Cannot remove an edge that does not exist')
-
-    await g.batchDel
-      ( Table.EDGE
-      , [ { hk: `${from}${direction}${def.label}`, to }
-        , { hk: `${to}${direction === OUT ? IN : OUT}${def.label}`, to: from }
-        ]
-      )
+    if (e) {
+      await g.batchDel
+        ( Table.EDGE
+        , [ direction === OUT
+          ? { hk_out: `${def.label}>${from}`, to }
+          : { hk_out: `${def.label}>${to}`, to: from }
+          ]
+        )
+    }
 
     return e
 
   }
 
 /**
- * Do to the two-key restriction on dynamodb, we simulate a compound index
- * by serializing (from, direction, label) as a single string: `hk`
- *
- * As a slight optimization we also serialize
+ * We store single edges because this ain't redis anymore, we have more powerful queries.
+ * Due to the two-key restriction on indices though, we simulate fields by creating computed tuples
  */
 
 export type SerializedEdge<a> =
-  { from      : $Id
+  { hk_out    : string
+  , hk_in     : string
+  , from      : $Id
   , label     : $Label<Edge<a>>
-  , out       : boolean
   , weight    : $Weight
   , to        : $Id
   , attrs     : a
   , updatedAt : number
-  , hk        : string
   }
 
-function serialize<a>({ direction, ...edge }: Edge<a>): SerializedEdge<a> {
+function serialize<a>({ direction, from, to, ...edge }: Edge<a>): SerializedEdge<a> {
+  if (direction === IN)
+    [ from, to ] = [ to, from ]
   return {
     ...edge
-    , out: direction === OUT
-    , hk: `${edge.from}${direction}${edge.label}`
+    , from
+    , to
+    , hk_out: `${edge.label}>${from}`
+    , hk_in: `${edge.label}<${to}`
   }
 }
 
-function deserialize<a>({ hk, out, attrs, ...edge }: SerializedEdge<a>): Edge<a> {
+function deserialize<a>({ hk_in, hk_out, from, to, attrs, ...edge }: SerializedEdge<a>, direction: Direction): Edge<a> {
+  if (direction === IN)
+    [ from, to ] = [ to, from ]
   return {
     ...edge
-    , direction: out ? OUT : IN
-    , attrs // for consistency
+    , direction
+    , from
+    , to
+    , attrs // for consistency (undefined attrs)
   }
 }
 
@@ -373,8 +367,25 @@ function deserialize<a>({ hk, out, attrs, ...edge }: SerializedEdge<a>): Edge<a>
  */
 
 function isMultiplicity(m: Multiplicity): boolean {
-  return m && ( m[IN]  === "MANY" || m[IN]  === "ONE" )
-           && ( m[OUT] === "MANY" || m[OUT] === "ONE" )
+  return m
+      && ( m[IN]  === "MANY" || m[IN]  === "ONE" )
+      && ( m[OUT] === "MANY" || m[OUT] === "ONE" )
+}
+
+function isGraph(g: Graph): boolean {
+  return g.__GRAPH__
+}
+
+function isEdgeDef<a>(def: EdgeDef<a>): boolean {
+  return def.__EDGE_DEF__
+}
+
+function isID(id: $Id): boolean {
+  return typeof id === 'string'
+}
+
+function isWeight(weight: MaybeWeight): boolean {
+  return weight === GENERATE || typeof weight === 'number'
 }
 
 function isDirection(dir: Direction): boolean {

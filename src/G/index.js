@@ -33,13 +33,17 @@ import { documentClient, batchGet, batchPut, batchDel } from './adapter'
  */
 
 type Index
-  = "hk-weight-index"       // where hk is of the form [id]:[edge_label]
-  | "from-index"            // used to determine all adjacencies to a vertex
+  = "hk_out-weight-index"   // where hk is of the form [label]>from
+  | "hk_in-weight-index"    // where hk is of the form [label]<to
+  | "from-index"            // used to determine all edges pointing from a vertex
+  | "to-index"              // used to determine all edges pointing to a vertex
   | "label-key-index"       // used for quick retrieval of significant vertices or mappings
   | "label-updatedAt-index" // used for scanning the entire table for maintenance tasks
 
-export const INDEX_ADJACENCY  : Index = "hk-weight-index"
+export const INDEX_EDGE_OUT   : Index = "hk_out-weight-index"
+export const INDEX_EDGE_IN    : Index = "hk_in-weight-index"
 export const INDEX_EDGE_FROM  : Index = "from-index"
+export const INDEX_EDGE_TO    : Index = "to-index"
 export const INDEX_VERTEX_KEY : Index = "label-key-index"
 export const INDEX_VERTEX_ALL : Index = "label-updatedAt-index"
 
@@ -220,6 +224,8 @@ function define$
           )
         return result
       })
+
+    // TODO: batching execution of mutations
 
     const QueryLoader: DataLoader<any, any> =
       new DataLoader

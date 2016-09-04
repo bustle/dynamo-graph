@@ -1,7 +1,7 @@
 {
   "name": "dynamo-graph",
   "description": "Low-level graph database operations implemented in DynamoDB.",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "main": "lib/index.js",
   "scripts": {
     "compile": "NODE_ENV=production babel -d lib/ src/",
@@ -25,7 +25,7 @@
     "dataloader": "^1.2.0"
   },
   "devDependencies": {
-    "ava": "^0.15.2",
+    "ava": "^0.16.0",
     "babel-cli": "^6.11.4",
     "babel-plugin-module-alias": "^1.6.0",
     "babel-plugin-transform-async-to-bluebird": "^1.0.0",

@@ -5,7 +5,7 @@ import type { Vertex } from '../V'
 import type { SerializedEdge } from '../E'
 
 type VertexKey = { id: string }
-type EdgeKey = { hk: string, to: string }
+type EdgeKey = { hk_out: string, to: string }
 type SystemKey = { key: string }
 
 export const VERTEX : $Table<VertexKey, Vertex<mixed>>       = "vertex"
@@ -21,10 +21,10 @@ export const vertexTable = (prefix: string): $TableRep<VertexKey, Vertex<mixed>>
 
 export const edgeTable = (prefix: string): $TableRep<EdgeKey, SerializedEdge<mixed>> => (
   { TableName: `${prefix}-edge`
-  , serialize: ({ hk, to }) => `${hk}~$~${to}`
+  , serialize: ({ hk_out, to }) => `${hk_out}~$~${to}`
   , deserialize: key => {
-      const [ hk, to ] = key.split('~$~')
-      return { hk, to }
+      const [ hk_out, to ] = key.split('~$~')
+      return { hk_out, to }
     }
   }
 )

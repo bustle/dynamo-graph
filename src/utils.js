@@ -10,6 +10,10 @@ export function invariant(condition: mixed, message: string) : void {
     throw new Error(message)
 }
 
+export function validateArg<a>(name: string, argument: number, fn: (val: a) => mixed, x: a): void {
+  invariant(fn(x), `${name} at argument ${argument}, expected "${fn.name}" got ${JSON.stringify(x) || 'undefined'}`)
+}
+
 export function maybe<a>(key: string, value: ?a): { [key: string]: a } {
   if (value === undefined)
     return {  }

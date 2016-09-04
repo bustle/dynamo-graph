@@ -5,6 +5,7 @@ import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
 import { INDEX_EDGE_FROM
+       , INDEX_EDGE_TO
        , INDEX_VERTEX_KEY
        , INDEX_VERTEX_ALL
        } from '../G'
@@ -271,8 +272,7 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
 
   invariant(v, 'Cannot remove a vertex that does not exist')
 
-  // TODO: delete adjacencies
-  const edges =
+  const outE =
     await g.query
       ( Table.EDGE
       , INDEX_EDGE_FROM
@@ -282,16 +282,29 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
         }
       )
 
-  const edgeKeys: Array<{ hk: string, to: string }> =
-    flatten(
-      edges.map(
-        ({ out, label, to }) =>
-          to === id // handles duplicate keys error
-          ? [ { hk: `${id}${out?OUT:IN}${label}`, to } ]
-          : [ { hk: `${id}${out?OUT:IN}${label}`, to }
-            , { hk: `${to}${out?IN:OUT}${label}`, to: id }
-            ]
+  const inE =
+    await g.query
+      ( Table.EDGE
+      , INDEX_EDGE_TO
+      , { KeyConditions:
+          { to: { ComparisonOperator: 'EQ', AttributeValueList: [ v.id ] }
+          }
+        }
       )
+
+  // map for deduping
+  const outMap = {}
+  outE.forEach(({ hk_out, to }) => {
+    outMap[`${hk_out}~$~${to}`] = true
+  })
+
+  const edgeKeys: Array<{ hk_out: string, to: string }> =
+    flatten(
+      [ outE.map(({ hk_out, to }) => ({ hk_out, to }))
+      , inE
+          .filter(({ hk_out, to }) => !outMap[`${hk_out}~$~${to}`])
+          .map(({ hk_out, to }) => ({ hk_out, to }))
+      ]
     )
 
   await g.batchDel(Table.EDGE, edgeKeys)

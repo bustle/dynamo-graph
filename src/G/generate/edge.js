@@ -2,7 +2,11 @@
 
 import type { Context } from './utils'
 
-import { INDEX_EDGE_FROM, INDEX_ADJACENCY } from '../index'
+import { INDEX_EDGE_OUT
+       , INDEX_EDGE_IN
+       , INDEX_EDGE_FROM
+       , INDEX_EDGE_TO
+       } from '../index'
 import { indent, createTable } from './utils'
 
 export default async function(ctx: Context, tables: Array<string>) {
@@ -16,7 +20,10 @@ export default async function(ctx: Context, tables: Array<string>) {
     , tables
     , { TableName
       , AttributeDefinitions:
-        [ { AttributeName: 'hk'
+        [ { AttributeName: 'hk_out'
+          , AttributeType: 'S'
+          }
+        , { AttributeName: 'hk_in'
           , AttributeType: 'S'
           }
         , { AttributeName: 'from'
@@ -30,7 +37,7 @@ export default async function(ctx: Context, tables: Array<string>) {
           }
         ]
       , KeySchema:
-        [ { AttributeName: 'hk'
+        [ { AttributeName: 'hk_out'
           , KeyType: 'HASH'
           }
         , { AttributeName: 'to'
@@ -41,38 +48,58 @@ export default async function(ctx: Context, tables: Array<string>) {
         { ReadCapacityUnits: 10
         , WriteCapacityUnits: 10
         }
-      , GlobalSecondaryIndexes:
-        [ { IndexName: INDEX_EDGE_FROM
-          , KeySchema:
-            [ { AttributeName: 'from'
-              , KeyType: 'HASH'
-              }
-            ]
-          , Projection:
-            { ProjectionType: 'INCLUDE'
-            , NonKeyAttributes:
-              [ 'label'
-              , 'out'
-              , 'to'
-              ]
-            }
-          , ProvisionedThroughput:
-            { ReadCapacityUnits: 10
-            , WriteCapacityUnits: 10
-            }
-          }
-        ]
       , LocalSecondaryIndexes:
-        [ { IndexName: INDEX_ADJACENCY
+        [ { IndexName: INDEX_EDGE_OUT
           , KeySchema:
-            [ { AttributeName: 'hk'
+            [ { AttributeName: 'hk_out'
               , KeyType: 'HASH'
               }
             , { AttributeName: 'weight'
               , KeyType: 'RANGE'
               }
-              ]
+            ]
           , Projection: { ProjectionType: 'ALL' }
+          }
+        ]
+      , GlobalSecondaryIndexes:
+        [ { IndexName: INDEX_EDGE_IN
+          , KeySchema:
+            [ { AttributeName: 'hk_in'
+              , KeyType: 'HASH'
+              }
+            , { AttributeName: 'weight'
+              , KeyType: 'RANGE'
+              }
+            ]
+          , Projection: { ProjectionType: 'ALL' }
+          , ProvisionedThroughput:
+            { ReadCapacityUnits: 10
+            , WriteCapacityUnits: 10
+            }
+          }
+        , { IndexName: INDEX_EDGE_FROM
+          , KeySchema:
+            [ { AttributeName: 'from'
+              , KeyType: 'HASH'
+              }
+            ]
+          , Projection: { ProjectionType: 'KEYS_ONLY' }
+          , ProvisionedThroughput:
+            { ReadCapacityUnits: 10
+            , WriteCapacityUnits: 10
+            }
+          }
+        , { IndexName: INDEX_EDGE_TO
+          , KeySchema:
+            [ { AttributeName: 'to'
+              , KeyType: 'HASH'
+              }
+            ]
+          , Projection: { ProjectionType: 'KEYS_ONLY' }
+          , ProvisionedThroughput:
+            { ReadCapacityUnits: 10
+            , WriteCapacityUnits: 10
+            }
           }
         ]
       }
