@@ -265,36 +265,49 @@ function define$
           return Attributes.value
         }
 
-      , V: new TableAdapter(client, reps[Table.VERTEX])
-      , E: new TableAdapter(client, reps[Table.EDGE])
+      , V: new TableAdapter(client, reps[Table.VERTEX], isProd)
+      , E: new TableAdapter(client, reps[Table.EDGE], isProd)
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
       , async query<K,V>(table: $Table<K,V>, IndexName, params): Promise<Array<V>> {
-          // TODO: iterate until all results are fetched
           const { TableName } = reps[table]
-
-          const { Items } =
-            await QueryLoader.load(
-              { TableName
-              , IndexName
-              , ...params
-              }
-            )
-
-          return Items
+          const items = []
+          const cursor = { Limit: params.Limit, ExclusiveStartKey: undefined }
+          do { // iterate until everything is fetched
+            const { Items, Count, LastEvaluatedKey } =
+              await QueryLoader.load(
+                { TableName
+                , IndexName
+                , ...params
+                , ...cursor
+                }
+              )
+            items.push(...Items)
+            cursor.ExclusiveStartKey = LastEvaluatedKey
+            if (cursor.Limit) {
+              cursor.Limit -= Count
+            }
+          } while (cursor.ExclusiveStartKe )
+          return items
       }
 
       , async count<K,V>(table: $Table<K,V>, IndexName, params): Promise<$PageInfo> {
           const { TableName } = reps[table]
-          const { Count: count } =
-            await QueryLoader.load(
-              { TableName
-              , IndexName
-              , Select: 'COUNT'
-              , ...params
-              }
-            )
+          let count = 0
+          const cursor = {}
+          do { // iterate until everything is fetched
+            const { Count, LastEvaluatedKey } =
+              await QueryLoader.load(
+                { TableName
+                , IndexName
+                , Select: 'COUNT'
+                , ...params
+                }
+              )
+            count += Count
+            cursor.ExclusiveStartKey = LastEvaluatedKey
+          } while (cursor.ExclusiveStartKey)
           return { count }
         }
       }
