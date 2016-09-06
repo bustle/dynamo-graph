@@ -303,6 +303,7 @@ function define$
                 , IndexName
                 , Select: 'COUNT'
                 , ...params
+                , ...cursor
                 }
               )
             count += Count
