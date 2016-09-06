@@ -287,8 +287,9 @@ function define$
             cursor.ExclusiveStartKey = LastEvaluatedKey
             if (cursor.Limit) {
               cursor.Limit -= Count
+              if (cursor.Limit === 0) break
             }
-          } while (cursor.ExclusiveStartKe )
+          } while (cursor.ExclusiveStartKey)
           return items
       }
 

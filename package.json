@@ -1,7 +1,7 @@
 {
   "name": "dynamo-graph",
   "description": "Low-level graph database operations implemented in DynamoDB.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "main": "lib/index.js",
   "scripts": {
     "compile": "NODE_ENV=production babel -d lib/ src/",
