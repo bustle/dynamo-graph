@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { $Id, $Label, $Weight, $Cursor, $PageInfo } from '../Types'
+import type { $Id, $Label, $Weight, $Cursor, $Page } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
@@ -155,13 +155,13 @@ export async function set<a>
     const out = direction === OUT
 
     if (def.multiplicity[IN] === "ONE") {
-      const [ inE ]: Array<Edge<a>> =
+      const { items: [ inE ] }: $Page<any,Edge<a>> =
         await range(g, out ? to : from, def, IN)
       if (inE) await remove(g, inE.from, def, IN, inE.to)
     }
 
     if (def.multiplicity[OUT] === "ONE") {
-      const [ outE ]: Array<Edge<a>> =
+      const { items: [ outE ] }: $Page<any,Edge<a>> =
         await range(g, out ? from : to, def, OUT)
       if (outE) await remove(g, outE.from, def, OUT, outE.to)
     }
@@ -218,7 +218,7 @@ export async function range<a>
   , def: EdgeDef<a>
   , direction: Direction = OUT
   , cursor: ?$Cursor = {}
-  ): Promise<Array<Edge<a>>> {
+  ): Promise<$Page<$Weight,Edge<a>>> {
 
     validateArg('E.get', 1, isGraph, g)
     validateArg('E.get', 2, isID, from)
@@ -230,7 +230,7 @@ export async function range<a>
           , ScanIndexForward
           }: ParsedCursor = Cursor.parse(cursor)
 
-    const edges: Array<SerializedEdge<a>> =
+    const edges: $Page<{ weight: $Weight },SerializedEdge<a>> =
       await g.query
         ( Table.EDGE
         , direction === OUT ? INDEX_EDGE_OUT : INDEX_EDGE_IN
@@ -246,7 +246,13 @@ export async function range<a>
           }
         )
 
-    return edges.map(e => deserialize(e, direction))
+    const serialized: $Page<$Weight,Edge<a>> =
+      { items: edges.items.map(e => deserialize(e, direction))
+      , hasMore: edges.hasMore
+      , lastCursor: edges.lastCursor && edges.lastCursor.weight
+      }
+
+    return serialized
   }
 
 
@@ -256,7 +262,7 @@ export async function count<a>
   , def: EdgeDef<a>
   , direction: Direction = OUT
   , cursor: ?$Cursor = {}
-  ): Promise<$PageInfo> {
+  ): Promise<number> {
 
     validateArg('E.get', 1, isGraph, g)
     validateArg('E.get', 2, isID, from)

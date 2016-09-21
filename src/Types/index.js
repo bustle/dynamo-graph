@@ -78,8 +78,10 @@ type ReverseCursor =
   , before?: number
   }
 
-export type $PageInfo<a> =
-  { count?: number
+export type $Page<K,V> =
+  { items: Array<V>
+  , hasMore: boolean
+  , lastCursor: ?K
   }
 
 /**

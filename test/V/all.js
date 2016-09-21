@@ -23,8 +23,8 @@ test
 
       await Promise.all(
         [].concat
-          ( prev1.map(v => V.remove(g, v.id))
-          , prev2.map(v => V.remove(g, v.id))
+          ( prev1.items.map(v => V.remove(g, v.id))
+          , prev2.items.map(v => V.remove(g, v.id))
           )
       )
 
@@ -40,9 +40,9 @@ test
 
       // retrieve a whole index
       const all1 = await V.all(g, ALL_1)
-      for (const v of all1) {
+      for (const v of all1.items) {
         t.is(v.label, 'All1')
-        for (const v2 of all1)
+        for (const v2 of all1.items)
           v === v2 || t.notDeepEqual(v, v2)
       }
 
@@ -52,24 +52,30 @@ test
       // forward pagination works
 
       const pagef1 = await V.all(g, ALL_1, { first: P })
-      t.is(pagef1.length, P)
-      const pagef2 = await V.all(g, ALL_1, { first: P, after: pagef1[P-1].updatedAt })
-      t.is(pagef2.length, P)
-      const pagef3 = await V.all(g, ALL_1, { after: pagef2[P-1].updatedAt })
-      t.is(pagef3.length, N_1 - P - P)
+      t.is(pagef1.items.length, P)
+      const pagef2 = await V.all(g, ALL_1, { first: P, after: pagef1.lastCursor })
+      t.is(pagef2.items.length, P)
+      const pagef3 = await V.all(g, ALL_1, { after: pagef2.lastCursor })
+      t.is(pagef3.items.length, N_1 - P - P)
 
-      t.deepEqual([].concat(pagef1, pagef2, pagef3), all1)
+      t.deepEqual
+        ( [].concat(pagef1.items, pagef2.items, pagef3.items)
+        , all1.items
+        )
 
       // reverse pagination works
 
       const pager1 = await V.all(g, ALL_1, { last: P })
-      t.is(pager1.length, P)
-      const pager2 = await V.all(g, ALL_1, { last: P, before: pager1[P-1].updatedAt })
-      t.is(pager2.length, P)
-      const pager3 = await V.all(g, ALL_1, { before: pager2[P-1].updatedAt })
-      t.is(pager3.length, N_1 - P - P)
+      t.is(pager1.items.length, P)
+      const pager2 = await V.all(g, ALL_1, { last: P, before: pager1.lastCursor })
+      t.is(pager2.items.length, P)
+      const pager3 = await V.all(g, ALL_1, { before: pager2.lastCursor })
+      t.is(pager3.items.length, N_1 - P - P)
 
-      t.deepEqual([].concat(pager1, pager2, pager3).reverse(), all1)
+      t.deepEqual
+        ( [].concat(pager1.items, pager2.items, pager3.items).reverse()
+        , all1.items
+        )
 
     }
   )

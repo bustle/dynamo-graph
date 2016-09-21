@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { $Id, $Label, $Key, $Cursor, $PageInfo } from '../Types'
+import type { $Id, $Label, $Key, $Weight, $Cursor, $Page } from '../Types'
 import type { ParsedCursor } from '../Types/Cursor'
 import type { Graph } from '../G'
 
@@ -175,7 +175,7 @@ export async function getByKey<a>
     invariant(def.__VERTEX_DEF__, `V.getByKey expected VertexDef for 2nd argument, got "${def.toString()}"`)
     invariant(key,                `V.getByKey expected Key for 3rd argument, got "${key}"`)
 
-    const [ v ]: Array<Vertex<a>> =
+    const { items: [ v ] }: $Page<any,Vertex<a>> =
       await g.query
         ( Table.VERTEX
         , INDEX_VERTEX_KEY
@@ -207,30 +207,37 @@ export async function all<a>
   ( g: Graph
   , def: VertexDef<a>
   , cursor: ?$Cursor = {}
-  ): Promise<Array<Vertex<a>>> {
+  ): Promise<$Page<$Weight,Vertex<a>>> {
 
     invariant(g.__GRAPH__,        `V.all expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(def.__VERTEX_DEF__, `V.all expected VertexDef for 2nd argument, got "${def}"`)
 
     const { RangeCondition, Limit, ScanIndexForward }: ParsedCursor = Cursor.parse(cursor)
 
-    const vs: Array<Vertex> = await g.query
-      ( Table.VERTEX
-      , INDEX_VERTEX_ALL
-      , { KeyConditions:
-          { label: { ComparisonOperator: 'EQ'
-                   , AttributeValueList: [ def.label ]
-                   }
-          , ...maybe('updatedAt', RangeCondition)
+    const page: $Page<{ updatedAt: $Weight },Vertex<a>> =
+      await g.query
+        ( Table.VERTEX
+        , INDEX_VERTEX_ALL
+        , { KeyConditions:
+            { label: { ComparisonOperator: 'EQ'
+                     , AttributeValueList: [ def.label ]
+                     }
+            , ...maybe('updatedAt', RangeCondition)
+            }
+          , Limit
+          , ScanIndexForward
           }
-        , Limit
-        , ScanIndexForward
-        }
-      )
+        )
 
-    g.V.primeMany(vs)
+      g.V.primeMany(page.items)
 
-    return vs
+    const parsed =
+      { items: page.items
+      , hasMore: page.hasMore
+      , lastCursor: page.lastCursor && page.lastCursor.updatedAt
+      }
+
+    return parsed
 
   }
 
@@ -238,7 +245,7 @@ export async function count<a>
   ( g: Graph
   , def: VertexDef<a>
   , cursor: ?$Cursor = {}
-  ): Promise<$PageInfo> {
+  ): Promise<number> {
 
     invariant(g.__GRAPH__,        `V.count expected Graph for 1st argument, got "${g.toString()}"`)
     invariant(def.__VERTEX_DEF__, `V.count expected VertexDef for 2nd argument, got "${def}"`)
@@ -273,7 +280,7 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
 
   invariant(v, 'Cannot remove a vertex that does not exist')
 
-  const outE =
+  const { items: outE } =
     await g.query
       ( Table.EDGE
       , INDEX_EDGE_FROM
@@ -283,7 +290,7 @@ export async function remove(g: Graph, id: $Id): Promise<Vertex<mixed>> {
         }
       )
 
-  const inE =
+  const { items: inE } =
     await g.query
       ( Table.EDGE
       , INDEX_EDGE_TO

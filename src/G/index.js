@@ -9,7 +9,7 @@
  *      An implementation can be done in MongoDB, you know, if you're a "webscale" asshole
  */
 
-import type { $Id, $Weight, $PageInfo, $Table, $TableRep } from '../Types'
+import type { $Id, $Weight, $Page, $Table, $TableRep } from '../Types'
 
 import type { VertexKey, EdgeKey } from '../Types/Table'
 import type { Vertex } from '../V'
@@ -76,13 +76,13 @@ export type Graph =
       ( table: $Table<K,V>
       , index: Index
       , params: any
-      ): Promise<Array<V>>
+      ): Promise<$Page<K,V>>
 
   , count<K,V>
       ( table: $Table<K,V>
       , index: Index
       , params: any
-      ): Promise<$PageInfo>
+      ): Promise<number>
   }
 
 /**
@@ -270,7 +270,7 @@ function define$
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters
-      , async query<K,V>(table: $Table<K,V>, IndexName, params): Promise<Array<V>> {
+      , async query<K,V>(table: $Table<K,V>, IndexName, params): Promise<$Page<K,V>> {
           const { TableName } = reps[table]
           const items = []
           const cursor = { Limit: params.Limit, ExclusiveStartKey: undefined }
@@ -290,10 +290,17 @@ function define$
               if (cursor.Limit === 0) break
             }
           } while (cursor.ExclusiveStartKey)
-          return items
+
+          const page =
+            { items
+            , hasMore: !!cursor.ExclusiveStartKey
+            , lastCursor: cursor.ExclusiveStartKey
+            }
+
+          return page
       }
 
-      , async count<K,V>(table: $Table<K,V>, IndexName, params): Promise<$PageInfo> {
+      , async count<K,V>(table: $Table<K,V>, IndexName, params): Promise<number> {
           const { TableName } = reps[table]
           let count = 0
           const cursor = {}
@@ -310,7 +317,7 @@ function define$
             count += Count
             cursor.ExclusiveStartKey = LastEvaluatedKey
           } while (cursor.ExclusiveStartKey)
-          return { count }
+          return count
         }
       }
 

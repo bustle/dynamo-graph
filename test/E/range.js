@@ -42,8 +42,8 @@ test
 
           // paginates in correct order
           const all = await E.range(g, id, ADJ_TO, DIR)
-          assertOrdered(t, all)
-          for (const e of all) {
+          assertOrdered(t, all.items)
+          for (const e of all.items) {
             t.is(e.label, 'AdjTo')
             t.is(e.direction, DIR)
           }
@@ -51,18 +51,24 @@ test
           // forward pagination works
 
           const pf1 = await E.range(g, id, ADJ_TO, DIR, { first: P })
-          const pf2 = await E.range(g, id, ADJ_TO, DIR, { first: P, after: pf1[P-1].weight })
-          const pf3 = await E.range(g, id, ADJ_TO, DIR, { after: pf2[P-1].weight })
+          const pf2 = await E.range(g, id, ADJ_TO, DIR, { first: P, after: pf1.lastCursor })
+          const pf3 = await E.range(g, id, ADJ_TO, DIR, { after: pf2.lastCursor })
 
-          t.deepEqual([].concat(pf1, pf2, pf3), all)
+          t.deepEqual
+            ( [].concat(pf1.items, pf2.items, pf3.items)
+            , all.items
+            )
 
           // backwards pagination works
 
           const pr1 = await E.range(g, id, ADJ_TO, DIR, { last: P })
-          const pr2 = await E.range(g, id, ADJ_TO, DIR, { last: P, before: pr1[P-1].weight })
-          const pr3 = await E.range(g, id, ADJ_TO, DIR, { before: pr2[P-1].weight })
+          const pr2 = await E.range(g, id, ADJ_TO, DIR, { last: P, before: pr1.lastCursor })
+          const pr3 = await E.range(g, id, ADJ_TO, DIR, { before: pr2.lastCursor })
 
-          t.deepEqual([].concat(pr1, pr2, pr3).reverse(), all)
+          t.deepEqual
+            ( [].concat(pr1.items, pr2.items, pr3.items).reverse()
+            , all.items
+            )
 
         }
       }
@@ -86,16 +92,16 @@ test
         const e3 = await E.set(g, a, ADJ_TO, DIR, -1, d)
 
         const all = await E.range(g, a, ADJ_TO, DIR)
-        assertOrdered(t, all)
-        t.deepEqual([ e2, e1, e3 ], all)
+        assertOrdered(t, all.items)
+        t.deepEqual([ e2, e1, e3 ], all.items)
 
         const forward = await E.range(g, a, ADJ_TO, DIR, { first: 3 })
-        assertOrdered(t, forward)
-        t.deepEqual([ e2, e1, e3 ], forward)
+        assertOrdered(t, forward.items)
+        t.deepEqual([ e2, e1, e3 ], forward.items)
 
         const reverse = await E.range(g, a, ADJ_TO, DIR, { last: 3 })
-        assertOrdered(t, reverse, true)
-        t.deepEqual([ e3, e1, e2 ], reverse)
+        assertOrdered(t, reverse.items, true)
+        t.deepEqual([ e3, e1, e2 ], reverse.items)
 
       }
 

@@ -76,11 +76,11 @@ const overview = async () => {
   // E.range
 
   await E.range(g, me.id, AUTHORED, E.OUT)
-    // => [ e2, e1 ]
+    // => { items: [ e2, e1 ], hasMore: false, lastCursor: 1042 }
   await E.range(g, me.id, AUTHORED, E.OUT, { first: 1, after: 99999 })
-    // => [ e1 ]
+    // => { items: [ e1 ], hasMore: false, lastCursor: 1042 }
   await E.range(g, me.id, AUTHORED, E.OUT, { last: 1, before: -1 })
-    // => [ e1 ]
+    // => { items: [ e1 ], hasMore: true, lastCursor: 1042 }
 
   // Edge multiplicities are respected:
   
