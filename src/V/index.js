@@ -107,7 +107,8 @@ export async function create<a>(g: Graph, def: VertexDef<a>, attrs: a): Promise<
 
 // V.update :: Graph -> VertexDef a -> Id -> a -> Vertex a
 export async function update<a>(g: Graph, def: VertexDef<a>, id: $Id, attrs: a): Promise<Vertex<a>> {
-  return putVertex(g, def, id, attrs)
+  const v: ?Vertex<mixed> = await get(g, id)
+  return putVertex(g, def, id, attrs, v && v.key)
 }
 
 // V.putByKey :: Graph -> VertexDef a -> Key a -> a -> Vertex a
