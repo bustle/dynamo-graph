@@ -110,7 +110,7 @@ type Graph =
   , id: () => Promise<Id>
   , weight: () => Promise<Weight>
   , putCounter: (key: string, value: number) => Promise<number>
-  , incrCounter: (key: string, value: number) => Promise<number></number>
+  , incrCounter: (key: string) => Promise<number></number>
   }
 ```
 
