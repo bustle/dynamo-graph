@@ -83,7 +83,7 @@ const overview = async () => {
     // => { items: [ e1 ], hasMore: true, lastCursor: 1042 }
 
   // Edge multiplicities are respected:
-  
+
   await E.set(g, boss.id, AUTHORED, E.OUT, E.GENERATE, important.id)
     // => { from: '3Ry', label: 'Authored', direction: '>', weight: 1043, to: 'd7', updatedAt: 1469981321205 }
   await E.get(g, me.id, AUTHORED, E.OUT, important.id)
@@ -114,7 +114,7 @@ type Graph =
   }
 ```
 
-### `G.define(name[, { env, region }]): Graph`
+### `G.define(name[, { env, region, omitLogs }]): Graph`
 ### `G.generate(g): Promise<Graph>`
 
 ## V

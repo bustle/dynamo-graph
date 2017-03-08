@@ -59,7 +59,7 @@ export type Graph =
   { __GRAPH__ : true   // type validator
   , name      : string // graph name
   , region    : Region // region
-  , env       : Env    // environment (non-production environments will log results)
+  , env       : Env    // environment
 
   , id        : () => Promise<$Id>     // generate a fresh id
   , weight    : () => Promise<$Weight> // generate a fresh weight
@@ -95,6 +95,7 @@ export type Graph =
 type GraphConfigs =
   { env?    : Env
   , region? : Region
+  , omitLogs? : boolean
   }
 
 type Env
@@ -163,6 +164,7 @@ function define$
   ( name: string
   , { env    = "development"
     , region = "us-east-1"
+    , omitLogs = false
     } : GraphConfigs = {}
   ): Graph {
 
@@ -176,7 +178,7 @@ function define$
       const g = graphs[name]
       invariant
         ( g.env === env && g.region === region
-        , `There already exists a distcint graph named "${name}"`
+        , `There already exists a distinct graph named "${name}"`
         )
       // we want to create a new graph instance each time
       // return g.graph
@@ -194,13 +196,11 @@ function define$
       , [Table.SYSTEM]: SystemTable
       }
 
-    const isProd: boolean = env === ENV_PRODUCTION
-
     const QueryLoader: DataLoader<any, any> =
       new DataLoader
         ( async queries => {
             let op
-            if (!isProd) {
+            if (!omitLogs) {
               op = `batch of ${queries.length} queries (opId: ${Math.floor(Math.random() * 99999) + 1})`
               console.log(`Dispatching ${op}`)
               console.time(op)
@@ -208,7 +208,7 @@ function define$
             const result = await Promise.all(
               queries.map(q => client.queryAsync(q))
             )
-            if (!isProd) {
+            if (!omitLogs) {
               console.timeEnd(op)
             }
             return result
@@ -265,8 +265,8 @@ function define$
           return Attributes.value
         }
 
-      , V: new TableAdapter(client, reps[Table.VERTEX], isProd)
-      , E: new TableAdapter(client, reps[Table.EDGE], isProd)
+      , V: new TableAdapter(client, reps[Table.VERTEX], omitLogs)
+      , E: new TableAdapter(client, reps[Table.EDGE], omitLogs)
 
       // TODO: it would be nice to decouple the query params from dynamodb
       // but for now we'll omit the possibility of multiple adapters

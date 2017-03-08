@@ -13,7 +13,7 @@
     "prepublish": "npm run compile"
   },
   "author": "James Yu",
-  "license": "WTFPL",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/bustlelabs/dynamo-graph/issues"
   },
