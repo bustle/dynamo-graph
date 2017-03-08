@@ -1,5 +1,5 @@
 {
-  "name": "dynamo-graph",
+  "name": "@bustle/dynamo-graph",
   "description": "Low-level graph database operations implemented in DynamoDB.",
   "version": "1.0.0",
   "main": "lib/index.js",
